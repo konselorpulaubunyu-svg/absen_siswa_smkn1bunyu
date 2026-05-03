@@ -1,0 +1,17 @@
+{
+  "name": "ABSENSI SISWA SMKN 1 BUNYU",
+  "short_name": "Absensi SMKN1",
+  "description": "Sistem Informasi Absensi Siswa SMKN 1 Bunyu",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#F5F5F0",
+  "theme_color": "#2563eb",
+  "icons": [
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ]
+}

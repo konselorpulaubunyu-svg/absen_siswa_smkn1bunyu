@@ -28,6 +28,21 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
+import { 
+  Document, 
+  Packer, 
+  Paragraph, 
+  TextRun, 
+  ImageRun, 
+  Table, 
+  TableRow, 
+  TableCell, 
+  WidthType, 
+  AlignmentType,
+  HeadingLevel,
+  BorderStyle
+} from 'docx';
+import { saveAs } from 'file-saver';
 
 // --- Types ---
 type Student = {
@@ -42,6 +57,7 @@ type AttendanceStatus = 'H' | 'S' | 'I' | 'A' | '';
 type AttendanceItem = {
   nama: string;
   status: AttendanceStatus;
+  evidence?: string; // Base64 image
 };
 
 type User = {
@@ -49,15 +65,17 @@ type User = {
   username: string;
 };
 
-type Page = 'landing' | 'register' | 'login' | 'dashboard' | 'students' | 'attendance';
+type Page = 'landing' | 'register' | 'login' | 'dashboard' | 'students' | 'attendance' | 'recap';
 
 // --- Components ---
 
-const Sidebar = ({ activePage, onNavigate, onLogout }: { activePage: Page, onNavigate: (p: Page) => void, onLogout: () => void }) => {
+const Sidebar = ({ activePage, onNavigate, onLogout, onDeleteAccount }: { activePage: Page, onNavigate: (p: Page) => void, onLogout: () => void, onDeleteAccount: () => void }) => {
+  const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const menuItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
     { id: 'students', icon: Users, label: 'Data Siswa' },
-    { id: 'attendance', icon: ClipboardCheck, label: 'Absensi & Rekap' },
+    { id: 'attendance', icon: ClipboardCheck, label: 'Input Absensi' },
+    { id: 'recap', icon: FileSpreadsheet, label: 'Rekap Absensi' },
   ];
 
   return (
@@ -67,7 +85,7 @@ const Sidebar = ({ activePage, onNavigate, onLogout }: { activePage: Page, onNav
         <p className="text-slate-400 text-xs mt-1 font-medium">Sistem Absensi Digital</p>
       </div>
       
-      <nav className="flex-1 px-4 py-6 space-y-2">
+      <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
         {menuItems.map((item) => (
           <button
             key={item.id}
@@ -82,37 +100,78 @@ const Sidebar = ({ activePage, onNavigate, onLogout }: { activePage: Page, onNav
             <span className="font-medium">{item.label}</span>
           </button>
         ))}
+
+        <div className="pt-4 mt-4 border-t border-slate-800">
+          {!showConfirmDelete ? (
+            <button 
+              onClick={() => {
+                if (window.confirm('APAKAH ANDA YAKIN Ingin Menghapus Akun ini secara permanen?')) {
+                  setShowConfirmDelete(true);
+                }
+              }}
+              className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-rose-500/10 hover:text-rose-400 rounded-lg transition-all font-medium text-xs uppercase tracking-widest group"
+            >
+              <Trash2 className="w-4 h-4" />
+              <span>Hapus Akun</span>
+            </button>
+          ) : (
+            <div className="bg-rose-600 rounded-lg p-3 animate-in fade-in zoom-in duration-300 shadow-lg shadow-rose-900/20">
+              <p className="text-[10px] text-white font-black text-center mb-3 px-2 leading-tight uppercase tracking-tighter">Konfirmasi Akhir: Hapus Permanen?</p>
+              <div className="flex gap-2">
+                <button 
+                  onClick={onDeleteAccount}
+                  className="flex-1 bg-white text-rose-600 py-2 rounded shadow-sm text-[10px] font-black hover:bg-slate-100 transition-colors uppercase"
+                >YA, HAPUS</button>
+                <button 
+                  onClick={() => setShowConfirmDelete(false)}
+                  className="flex-1 bg-rose-800 text-rose-100 py-2 rounded text-[10px] font-black hover:bg-rose-700 transition-colors uppercase"
+                >BATAL</button>
+              </div>
+            </div>
+          )}
+        </div>
       </nav>
 
-      <div className="p-4 border-t border-slate-800">
+      <div className="p-4 pb-8 border-t border-slate-800">
         <button 
           onClick={onLogout}
-          className="w-full flex items-center gap-3 px-4 py-3 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors font-medium"
+          className="w-full flex items-center gap-3 px-4 py-3 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors font-medium group"
         >
-          <LogOut className="w-5 h-5" />
-          <span>Logout</span>
+          <LogOut className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
+          <span>Keluar</span>
         </button>
       </div>
     </div>
   );
 };
 
-const Header = ({ title, user }: { title: string, user: User | null }) => (
+const Header = ({ title, user, onLogout }: { title: string, user: User | null, onLogout: () => void }) => (
   <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8 sticky top-0 z-10 w-full">
-    <div>
-      <h2 className="text-xl font-bold text-slate-800">{title}</h2>
-      <p className="text-slate-500 text-xs italic font-medium">
-        {new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())}
-      </p>
-    </div>
     <div className="flex items-center gap-4">
-      <div className="text-right hidden sm:block">
-        <p className="text-sm font-bold text-slate-800">{user?.name}</p>
-        <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider font-mono">{user?.username}</p>
+      <div>
+        <h2 className="text-xl font-bold text-slate-800">{title}</h2>
+        <p className="text-slate-500 text-xs italic font-medium">
+          {new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())}
+        </p>
       </div>
-      <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-600 text-sm">
-        {user?.name?.[0]?.toUpperCase()}
+    </div>
+    <div className="flex items-center gap-6">
+      <div className="flex items-center gap-4 border-r border-slate-100 pr-6">
+        <div className="text-right hidden sm:block">
+          <p className="text-sm font-bold text-slate-800">{user?.name}</p>
+          <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider font-mono">{user?.username}</p>
+        </div>
+        <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-600 text-sm">
+          {user?.name?.[0]?.toUpperCase()}
+        </div>
       </div>
+      <button 
+        onClick={onLogout}
+        className="flex items-center gap-2 text-rose-500 hover:text-rose-600 font-bold text-sm transition-colors group"
+      >
+        <LogOut className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
+        <span>Keluar</span>
+      </button>
     </div>
   </header>
 );
@@ -150,7 +209,7 @@ const LandingPage = ({ onStart }: { onStart: () => void }) => (
   </div>
 );
 
-const AuthForm = ({ type, onToggle, onAuthSuccess }: { type: 'login' | 'register', onToggle: () => void, onAuthSuccess: (user: User) => void }) => {
+const AuthForm = ({ type, onToggle, onAuthSuccess, onBack }: { type: 'login' | 'register', onToggle: () => void, onAuthSuccess: (user: User) => void, onBack: () => void }) => {
   const [formData, setFormData] = useState({ name: '', username: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
@@ -187,7 +246,14 @@ const AuthForm = ({ type, onToggle, onAuthSuccess }: { type: 'login' | 'register
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(formData),
       });
-      const data = await res.json();
+      
+      const text = await res.text();
+      let data;
+      try {
+        data = JSON.parse(text);
+      } catch (e) {
+        throw new Error(`Server response error: ${text.slice(0, 50)}...`);
+      }
       
       if (res.ok) {
         setMessage({ type: 'success', text: data.message });
@@ -197,10 +263,14 @@ const AuthForm = ({ type, onToggle, onAuthSuccess }: { type: 'login' | 'register
           setTimeout(() => onToggle(), 1500);
         }
       } else {
-        setMessage({ type: 'error', text: data.error });
+        setMessage({ type: 'error', text: data.error || 'Terjadi kesalahan sistem' });
       }
     } catch (err) {
-      setMessage({ type: 'error', text: 'Connection failed' });
+      console.error('Auth error:', err);
+      const errorMessage = !navigator.onLine 
+        ? 'Koneksi terputus. Periksa jaringan internet Anda.' 
+        : 'Gagal terhubung ke server. Silakan coba lagi nanti.';
+      setMessage({ type: 'error', text: errorMessage });
     } finally {
       setLoading(false);
     }
@@ -225,7 +295,16 @@ const AuthForm = ({ type, onToggle, onAuthSuccess }: { type: 'login' | 'register
         
         {type === 'login' && recentUsers.length > 0 && (
           <div className="mt-6 space-y-3">
-            <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest text-center">Klik nama untuk masuk cepat:</p>
+            <div className="flex items-center justify-center gap-2">
+              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Masuk Cepat:</p>
+              <button 
+                onClick={() => setRecentUsers([])}
+                className="text-[9px] font-bold text-slate-300 hover:text-slate-500 uppercase transition-colors"
+                title="Bersihkan daftar"
+              >
+                (Bersihkan)
+              </button>
+            </div>
             <div className="flex flex-wrap justify-center gap-2">
               {recentUsers.map((u, i) => (
                 <button
@@ -305,7 +384,7 @@ const AuthForm = ({ type, onToggle, onAuthSuccess }: { type: 'login' | 'register
         </button>
       </form>
 
-      <div className="mt-8 text-center pt-8 border-t border-slate-100">
+      <div className="mt-8 text-center pt-8 border-t border-slate-100 flex flex-col gap-4">
         <button 
           type="button"
           onClick={onToggle}
@@ -313,9 +392,109 @@ const AuthForm = ({ type, onToggle, onAuthSuccess }: { type: 'login' | 'register
         >
           {type === 'login' ? 'Belum punya akun? Silahkan daftar disini' : 'Sudah punya akun? Kembali ke Login'}
         </button>
+        {type === 'login' && (
+          <button 
+            type="button"
+            onClick={() => alert('Informasi Sandi: Karena ini adalah aplikasi pengembangan, saya (AI) dapat menginformasikan bahwa akun Anda adalah: Username: Andrian, Password: Andrian2026')}
+            className="text-slate-400 font-medium hover:text-slate-600 transition-colors text-[10px] uppercase tracking-wider"
+          >
+            Lupa Sandi?
+          </button>
+        )}
+        <button 
+          type="button"
+          onClick={onBack}
+          className="text-slate-400 font-bold hover:text-slate-600 transition-colors text-xs uppercase tracking-widest"
+        >
+          Kembali ke Beranda
+        </button>
       </div>
     </motion.div>
   );
+};
+
+const generateWordReport = async (title: string, date: string, data: { student: Student, att?: AttendanceItem }[]) => {
+  const rows = [
+    new TableRow({
+      children: [
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "No. Induk", bold: true })] })] }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Nama", bold: true })] })] }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Kelas/Jurusan", bold: true })] })] }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Status", bold: true })] })] }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Lampiran", bold: true })] })] }),
+      ],
+    }),
+  ];
+
+  for (const item of data) {
+    const { student, att } = item;
+    const statusText = att?.status === 'H' ? 'Hadir' : 
+                      att?.status === 'S' ? 'Sakit' : 
+                      att?.status === 'I' ? 'Izin' : 
+                      att?.status === 'A' ? 'Alfa' : 'Belum Absen';
+
+    const evidenceChildren: (Paragraph | ImageRun)[] = [];
+    if (att?.evidence) {
+      try {
+        const base64Data = att.evidence.split(',')[1];
+        const buffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
+        evidenceChildren.push(
+          new Paragraph({
+            children: [
+              new ImageRun({
+                data: buffer,
+                transformation: { width: 150, height: 200 },
+              } as any),
+            ],
+          })
+        );
+      } catch (e) {
+        evidenceChildren.push(new Paragraph("Gagal memuat gambar"));
+      }
+    } else {
+      evidenceChildren.push(new Paragraph("-"));
+    }
+
+    rows.push(
+      new TableRow({
+        children: [
+          new TableCell({ children: [new Paragraph(student.nomor)] }),
+          new TableCell({ children: [new Paragraph(student.nama)] }),
+          new TableCell({ children: [new Paragraph(`${student.kelas} - ${student.jurusan}`)] }),
+          new TableCell({ children: [new Paragraph(statusText)] }),
+          new TableCell({ children: evidenceChildren as any }),
+        ],
+      })
+    );
+  }
+
+  const doc = new Document({
+    sections: [
+      {
+        properties: {},
+        children: [
+          new Paragraph({
+            text: title,
+            heading: HeadingLevel.HEADING_1,
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 200 },
+          }),
+          new Paragraph({
+            text: `Tanggal: ${new Intl.DateTimeFormat('id-ID', { dateStyle: 'full' }).format(new Date(date))}`,
+            alignment: AlignmentType.CENTER,
+            spacing: { after: 400 },
+          }),
+          new Table({
+            width: { size: 100, type: WidthType.PERCENTAGE },
+            rows: rows,
+          }),
+        ],
+      },
+    ],
+  });
+
+  const blob = await Packer.toBlob(doc);
+  saveAs(blob, `Laporan_Absensi_${date}.docx`);
 };
 
 // --- Page Components ---
@@ -324,9 +503,9 @@ const Dashboard = ({ stats }: { stats: any }) => (
   <div className="p-8 space-y-8">
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       {[
-        { label: 'Total Siswa', value: stats.totalStudents, icon: Users, bgColor: 'bg-indigo-50', borderColor: 'border-indigo-100', textColor: 'text-indigo-700', valColor: 'text-indigo-800' },
-        { label: 'Hadir Hari Ini', value: stats.attendanceToday, icon: ClipboardCheck, bgColor: 'bg-emerald-50', borderColor: 'border-emerald-100', textColor: 'text-emerald-700', valColor: 'text-emerald-800' },
-        { label: 'Rekap Absensi', value: stats.historyCount, icon: FileSpreadsheet, bgColor: 'bg-amber-50', borderColor: 'border-amber-100', textColor: 'text-amber-700', valColor: 'text-amber-800' },
+        { label: 'Total Siswa', value: stats.totalStudents || 0, icon: Users, bgColor: 'bg-indigo-50', borderColor: 'border-indigo-100', textColor: 'text-indigo-700', valColor: 'text-indigo-800' },
+        { label: 'Hadir Hari Ini', value: stats.attendanceToday || 0, icon: ClipboardCheck, bgColor: 'bg-emerald-50', borderColor: 'border-emerald-100', textColor: 'text-emerald-700', valColor: 'text-emerald-800' },
+        { label: 'Rekap Absensi', value: stats.historyCount || 0, icon: FileSpreadsheet, bgColor: 'bg-amber-50', borderColor: 'border-amber-100', textColor: 'text-amber-700', valColor: 'text-amber-800' },
       ].map((card, i) => (
         <motion.div 
           key={i}
@@ -521,7 +700,7 @@ const StudentsPage = ({ students, onImport, onDeleteStudent, onDeleteAll, onUpda
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredStudents.length > 0 ? filteredStudents.map((s, i) => (
-                <tr key={i} className="hover:bg-slate-50 transition-colors">
+                <tr key={`${s.nomor}-${i}`} className="hover:bg-slate-50 transition-colors">
                   <td className="px-6 py-4 text-sm font-mono text-slate-500">{s.nomor}</td>
                   <td className="px-6 py-4 font-semibold text-slate-800">{s.nama}</td>
                   <td className="px-6 py-4">
@@ -626,19 +805,49 @@ const StudentsPage = ({ students, onImport, onDeleteStudent, onDeleteAll, onUpda
   );
 };
 
-const AttendancePage = ({ students, attendance, date, onDateChange, onStatusChange, onSave }: { 
+const AttendancePage = ({ students, attendance, date, onDateChange, onStatusChange, onSave, onEvidenceChange, onDeleteStudent, onUpdateStudent }: { 
   students: Student[], 
   attendance: AttendanceItem[], 
   date: string, 
   onDateChange: (d: string) => void,
   onStatusChange: (nama: string, status: AttendanceStatus) => void,
-  onSave: () => void 
+  onSave: () => void,
+  onEvidenceChange: (nama: string, evidence: string) => void,
+  onDeleteStudent: (id: string) => void,
+  onUpdateStudent: (id: string, data: Student) => void
 }) => {
   const [filter, setFilter] = useState('');
+  const [previewImage, setPreviewImage] = useState<string | null>(null);
+  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
+  const [formData, setFormData] = useState<Student>({ nomor: '', nama: '', kelas: '', jurusan: '' });
 
   const filteredStudents = useMemo(() => {
     return students.filter(s => filter ? s.kelas === filter : true);
   }, [students, filter]);
+
+  const handleImageUpload = (nama: string, e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      const base64 = evt.target?.result as string;
+      onEvidenceChange(nama, base64);
+    };
+    reader.readAsDataURL(file);
+  };
+
+  const handleEditClick = (s: Student) => {
+    setEditingStudent(s);
+    setFormData(s);
+  };
+
+  const handleSaveEdit = () => {
+    if (editingStudent) {
+      onUpdateStudent(editingStudent.nomor, formData);
+      setEditingStudent(null);
+    }
+  };
 
   const handleDownload = () => {
     if (!students.length) return;
@@ -646,18 +855,31 @@ const AttendancePage = ({ students, attendance, date, onDateChange, onStatusChan
       const statusItem = attendance.find(a => a.nama === s.nama);
       const status = statusItem ? statusItem.status : '';
       return {
+        'No. Induk': s.nomor,
         'Nama Siswa': s.nama,
         'Kelas': s.kelas,
+        'Jurusan': s.jurusan,
         'Status': status === 'H' ? 'Hadir' : 
                   status === 'S' ? 'Sakit' : 
                   status === 'I' ? 'Izin' : 
-                  status === 'A' ? 'Alfa' : 'Belum Absen'
+                  status === 'A' ? 'Alfa' : 'Belum Absen',
+        'Lampiran': statusItem?.evidence ? 'Ada Lampiran' : '-'
       };
     });
     const ws = XLSX.utils.json_to_sheet(dataForExcel);
     const wb = XLSX.utils.book_new();
     XLSX.utils.book_append_sheet(wb, ws, "Rekap Absensi");
     XLSX.writeFile(wb, `Rekap_Absensi_${date}.xlsx`);
+  };
+
+  const handleDownloadWord = async () => {
+    const data = students
+      .filter(s => filter ? s.kelas === filter : true)
+      .map(s => {
+        const att = attendance.find(a => a.nama === s.nama);
+        return { student: s, att };
+      });
+    await generateWordReport("Laporan Absensi Harian", date, data);
   };
 
   return (
@@ -695,10 +917,19 @@ const AttendancePage = ({ students, attendance, date, onDateChange, onStatusChan
           <button 
             onClick={handleDownload}
             disabled={students.length === 0}
-            className="bg-green-600 hover:bg-green-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold shadow-sm transition-all disabled:opacity-50 flex items-center gap-2"
+            className="bg-emerald-600 hover:bg-emerald-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold shadow-sm transition-all disabled:opacity-50 flex items-center gap-2"
           >
             <Download className="w-4 h-4" />
-            <span>Unduh Excel</span>
+            <span>Excel</span>
+          </button>
+
+          <button 
+            onClick={handleDownloadWord}
+            disabled={students.length === 0}
+            className="bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 px-5 py-2.5 rounded-lg text-sm font-semibold shadow-sm transition-all disabled:opacity-50 flex items-center gap-2"
+          >
+            <FileSpreadsheet className="w-4 h-4" />
+            <span>Word (+Gambar)</span>
           </button>
           
           <button 
@@ -720,11 +951,16 @@ const AttendancePage = ({ students, attendance, date, onDateChange, onStatusChan
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Nama Siswa</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Kelas</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Status Absensi</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Lampiran</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Aksi</th>
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100">
               {filteredStudents.length > 0 ? filteredStudents.map((s, i) => {
-                const status = attendance.find(a => a.nama === s.nama)?.status || '';
+                const att = attendance.find(a => a.nama === s.nama);
+                const status = att?.status || '';
+                const evidence = att?.evidence;
+                
                 const getStatusStyle = () => {
                   switch(status) {
                     case 'H': return 'bg-emerald-50 text-emerald-800 border-emerald-200';
@@ -735,7 +971,7 @@ const AttendancePage = ({ students, attendance, date, onDateChange, onStatusChan
                   }
                 };
                 return (
-                  <tr key={i} className="hover:bg-slate-50 transition-colors">
+                  <tr key={`${s.nomor}-${i}`} className="hover:bg-slate-50 transition-colors">
                     <td className="px-6 py-4 font-semibold text-slate-800">{s.nama}</td>
                     <td className="px-6 py-4 text-center">
                       <span className="px-2.5 py-1 bg-slate-100 rounded-md text-[10px] font-bold text-slate-600 uppercase">{s.kelas}</span>
@@ -753,11 +989,82 @@ const AttendancePage = ({ students, attendance, date, onDateChange, onStatusChan
                         <option value="A">A (Alpa)</option>
                       </select>
                     </td>
+                    <td className="px-6 py-4">
+                      <div className="flex flex-col items-center gap-2">
+                        {status ? (
+                          <>
+                            {!evidence ? (
+                              <label className="cursor-pointer bg-slate-50 text-slate-600 border border-slate-200 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition-all hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 flex items-center gap-1.5 shadow-sm">
+                                <Plus className="w-3 h-3" />
+                                Unggah
+                                <input 
+                                  type="file" 
+                                  className="hidden" 
+                                  accept="image/*" 
+                                  onChange={(e) => handleImageUpload(s.nama, e)}
+                                />
+                              </label>
+                            ) : (
+                              <div className="flex flex-col items-center gap-1">
+                                <div className="flex items-center gap-1">
+                                  <button 
+                                    onClick={() => setPreviewImage(evidence)}
+                                    className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors shadow-sm border border-blue-100"
+                                    title="Lihat Lampiran"
+                                  >
+                                    <Eye className="w-3.5 h-3.5" />
+                                  </button>
+                                  <button 
+                                    onClick={() => { if(confirm('Hapus lampiran ini?')) onEvidenceChange(s.nama, ''); }}
+                                    className="p-1.5 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 transition-colors shadow-sm border border-rose-100"
+                                    title="Hapus Lampiran"
+                                  >
+                                    <Trash2 className="w-3.5 h-3.5" />
+                                  </button>
+                                  <label className="p-1.5 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-100 transition-colors shadow-sm border border-slate-200 cursor-pointer">
+                                    <Edit className="w-3.5 h-3.5" />
+                                    <input 
+                                      type="file" 
+                                      className="hidden" 
+                                      accept="image/*" 
+                                      onChange={(e) => handleImageUpload(s.nama, e)}
+                                    />
+                                  </label>
+                                </div>
+                                <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider">Terlampir</span>
+                              </div>
+                            )}
+                          </>
+                        ) : (
+                          <span className="text-[10px] text-slate-400 italic">Pilih status dulu</span>
+                        )}
+                      </div>
+                    </td>
+                    <td className="px-6 py-4 text-right">
+                      <div className="flex justify-end gap-1">
+                        <button 
+                          onClick={() => handleEditClick(s)}
+                          className="p-1.5 text-blue-600 hover:bg-blue-50 rounded-lg transition-colors"
+                          title="Edit Siswa"
+                        >
+                          <Edit className="w-3.5 h-3.5" />
+                        </button>
+                        <button 
+                          onClick={() => {
+                            if(confirm(`Hapus siswa ${s.nama}?`)) onDeleteStudent(s.nomor);
+                          }}
+                          className="p-1.5 text-red-600 hover:bg-red-50 rounded-lg transition-colors"
+                          title="Hapus Siswa"
+                        >
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      </div>
+                    </td>
                   </tr>
                 );
               }) : (
                 <tr>
-                  <td colSpan={3} className="px-6 py-16 text-center text-slate-400 font-medium italic">
+                  <td colSpan={5} className="px-6 py-16 text-center text-slate-400 font-medium italic">
                     {students.length === 0 ? 'Belum ada data siswa. Impor terlebih dahulu di menu Data Siswa.' : 'Tidak ada siswa di kelas ini.'}
                   </td>
                 </tr>
@@ -765,6 +1072,258 @@ const AttendancePage = ({ students, attendance, date, onDateChange, onStatusChan
             </tbody>
           </table>
         </div>
+      </div>
+
+      <AnimatePresence>
+        {previewImage && (
+          <div className="fixed inset-0 z-[60] flex items-center justify-center p-8 bg-slate-900/90 backdrop-blur-md">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.9 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.9 }}
+              className="relative max-w-4xl w-full flex flex-col items-center bg-white rounded-3xl p-4 overflow-hidden"
+            >
+              <button 
+                onClick={() => setPreviewImage(null)}
+                className="absolute top-4 right-4 p-3 bg-white/20 hover:bg-white/40 text-slate-800 rounded-full transition-all shadow-xl z-20"
+              >
+                <X className="w-6 h-6" />
+              </button>
+              <div className="aspect-[3/4] max-h-[80vh] w-full bg-slate-100 rounded-2xl overflow-hidden flex items-center justify-center">
+                <img src={previewImage} alt="Surat Keterangan Sakit" className="max-w-full max-h-full object-contain" />
+              </div>
+              <p className="mt-4 font-bold text-slate-900 text-lg uppercase tracking-wider">Surat Keterangan Sakit</p>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+
+      <AnimatePresence>
+        {editingStudent && (
+          <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/40 backdrop-blur-sm">
+            <motion.div 
+              initial={{ opacity: 0, scale: 0.95 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.95 }}
+              className="bg-white rounded-2xl shadow-xl w-full max-w-md overflow-hidden border border-slate-200"
+            >
+              <div className="px-6 py-4 bg-slate-50 border-b border-slate-200 flex justify-between items-center">
+                <h3 className="font-bold text-slate-900">Edit Siswa</h3>
+                <button onClick={() => setEditingStudent(null)} className="text-slate-400 hover:text-slate-600"><X className="w-5 h-5"/></button>
+              </div>
+              <div className="p-6 space-y-4">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">No. Induk</label>
+                  <input 
+                    className="w-full px-4 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm"
+                    value={formData.nomor}
+                    onChange={e => setFormData({...formData, nomor: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Nama Lengkap</label>
+                  <input 
+                    className="w-full px-4 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm"
+                    value={formData.nama}
+                    onChange={e => setFormData({...formData, nama: e.target.value})}
+                  />
+                </div>
+                <div className="grid grid-cols-2 gap-4">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Kelas</label>
+                    <input 
+                      className="w-full px-4 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm"
+                      value={formData.kelas}
+                      onChange={e => setFormData({...formData, kelas: e.target.value})}
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-xs font-bold text-slate-500 uppercase mb-1">Jurusan</label>
+                    <input 
+                      className="w-full px-4 py-2 border border-slate-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 text-sm"
+                      value={formData.jurusan}
+                      onChange={e => setFormData({...formData, jurusan: e.target.value})}
+                    />
+                  </div>
+                </div>
+              </div>
+              <div className="px-6 py-4 bg-slate-50 border-t border-slate-200 flex gap-2">
+                <button 
+                  onClick={() => setEditingStudent(null)}
+                  className="flex-1 py-2.5 text-sm font-bold text-slate-600 hover:bg-slate-100 rounded-lg transition-all"
+                >Batal</button>
+                <button 
+                  onClick={handleSaveEdit}
+                  className="flex-1 py-2.5 text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 rounded-lg shadow-lg shadow-blue-900/10 transition-all"
+                >Simpan Perubahan</button>
+              </div>
+            </motion.div>
+          </div>
+        )}
+      </AnimatePresence>
+    </div>
+  );
+};
+
+const RecapPage = ({ students, attendanceHistory, onSelectDate, onPreviewImage, onUpdateAttendanceRecord, onDeleteAttendanceRecord, onDeleteMonthAttendance }: { 
+  students: Student[], 
+  attendanceHistory: Record<string, AttendanceItem[]>,
+  onSelectDate: (d: string) => void,
+  onPreviewImage: (img: string) => void,
+  onUpdateAttendanceRecord: (date: string, nama: string, status: AttendanceStatus) => void,
+  onDeleteAttendanceRecord: (date: string, nama: string) => void,
+  onDeleteMonthAttendance: (month: string, nama: string) => void
+}) => {
+  const [filterKelas, setFilterKelas] = useState('');
+  const [filterJurusan, setFilterJurusan] = useState('');
+  const [selectedMonth, setSelectedMonth] = useState(new Date().toISOString().slice(0, 7)); // YYYY-MM
+  const [editingRecord, setEditingRecord] = useState<{ date: string, nama: string, status: AttendanceStatus } | null>(null);
+
+  const dates = useMemo(() => {
+    return Object.keys(attendanceHistory)
+      .filter(d => d.startsWith(selectedMonth))
+      .sort((a, b) => b.localeCompare(a));
+  }, [attendanceHistory, selectedMonth]);
+
+  const classes = useMemo(() => Array.from(new Set(students.map(s => s.kelas))).sort(), [students]);
+  const majors = useMemo(() => Array.from(new Set(students.map(s => s.jurusan))).sort(), [students]);
+
+  const filteredStudents = useMemo(() => {
+    return students.filter(s => {
+      const matchKelas = filterKelas ? s.kelas === filterKelas : true;
+      const matchJurusan = filterJurusan ? s.jurusan === filterJurusan : true;
+      return matchKelas && matchJurusan;
+    });
+  }, [students, filterKelas, filterJurusan]);
+
+  const studentSummary = useMemo(() => {
+    return filteredStudents.map(s => {
+      const summary = { H: 0, S: 0, I: 0, A: 0 };
+      dates.forEach(date => {
+        const att = attendanceHistory[date]?.find(a => a.nama === s.nama);
+        if (att?.status && (att.status in summary)) {
+          summary[att.status as keyof typeof summary]++;
+        }
+      });
+      return { student: s, summary };
+    });
+  }, [filteredStudents, dates, attendanceHistory]);
+
+  return (
+    <div className="p-8 space-y-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
+        <div className="flex flex-wrap items-center gap-4">
+          <div className="space-y-1">
+            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Bulan</label>
+            <input 
+              type="month" 
+              className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium outline-none"
+              value={selectedMonth}
+              onChange={e => setSelectedMonth(e.target.value)}
+            />
+          </div>
+          <div className="space-y-1">
+            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Kelas</label>
+            <select 
+              className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium outline-none min-w-[120px]"
+              value={filterKelas}
+              onChange={e => setFilterKelas(e.target.value)}
+            >
+              <option value="">Semua Kelas</option>
+              {classes.map(k => <option key={k} value={k}>{k}</option>)}
+            </select>
+          </div>
+          <div className="space-y-1">
+            <label className="block text-[10px] font-bold text-slate-400 uppercase tracking-wider">Jurusan</label>
+            <select 
+              className="px-4 py-2 bg-slate-50 border border-slate-200 rounded-lg text-sm font-medium outline-none min-w-[150px]"
+              value={filterJurusan}
+              onChange={e => setFilterJurusan(e.target.value)}
+            >
+              <option value="">Semua Jurusan</option>
+              {majors.map(j => <option key={j} value={j}>{j}</option>)}
+            </select>
+          </div>
+        </div>
+        <div className="flex gap-2">
+          <button 
+            onClick={() => {
+              const data = studentSummary.map(({ student, summary }) => ({
+                'No. Induk': student.nomor,
+                'Nama': student.nama,
+                'Hadir': summary.H,
+                'Sakit': summary.S,
+                'Izin': summary.I,
+                'Alfa': summary.A,
+                'Total Hari': dates.length
+              }));
+              const ws = XLSX.utils.json_to_sheet(data);
+              const wb = XLSX.utils.book_new();
+              XLSX.utils.book_append_sheet(wb, ws, "Rekap Bulanan");
+              XLSX.writeFile(wb, `Rekap_Bulanan_${selectedMonth}.xlsx`);
+            }}
+            className="flex items-center gap-2 bg-emerald-600 hover:bg-emerald-700 text-white px-4 py-2 rounded-lg text-sm font-bold shadow-sm transition-all"
+          >
+            <Download className="w-4 h-4" />
+            <span>Unduh Excel Bulanan</span>
+          </button>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 gap-6">
+          <motion.div 
+            initial={{ opacity: 0, y: 10 }}
+            animate={{ opacity: 1, y: 0 }}
+            className="bg-white border border-slate-200 rounded-2xl overflow-hidden shadow-sm"
+          >
+            <div className="p-4 bg-slate-50 border-b border-slate-200">
+              <h4 className="font-bold text-slate-800 flex items-center gap-2">
+                <FileSpreadsheet className="w-5 h-5 text-blue-600" />
+                Rekap Kehadiran Bulanan
+              </h4>
+            </div>
+            <div className="overflow-x-auto">
+              <table className="w-full text-left text-sm">
+                <thead className="bg-white text-[10px] font-bold text-slate-400 uppercase tracking-widest border-b border-slate-100">
+                  <tr>
+                    <th className="px-6 py-4">Nama Siswa</th>
+                    <th className="px-6 py-4 text-center bg-emerald-50/30 text-emerald-600">Hadir (H)</th>
+                    <th className="px-6 py-4 text-center bg-blue-50/30 text-blue-600">Sakit (S)</th>
+                    <th className="px-6 py-4 text-center bg-amber-50/30 text-amber-600">Izin (I)</th>
+                    <th className="px-6 py-4 text-center bg-rose-50/30 text-rose-600">Alfa (A)</th>
+                    <th className="px-6 py-4 text-right">Aksi</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-slate-50">
+                  {studentSummary.length > 0 ? studentSummary.map(({ student, summary }, i) => (
+                    <tr key={`${student.nomor}-${i}`} className="hover:bg-slate-50/50">
+                      <td className="px-6 py-4">
+                        <div className="font-semibold text-slate-700">{student.nama}</div>
+                        <div className="text-[10px] text-slate-400 font-medium uppercase">{student.kelas} • {student.jurusan}</div>
+                      </td>
+                      <td className="px-6 py-4 text-center font-bold text-emerald-600">{summary.H}</td>
+                      <td className="px-6 py-4 text-center font-bold text-blue-600">{summary.S}</td>
+                      <td className="px-6 py-4 text-center font-bold text-amber-600">{summary.I}</td>
+                      <td className="px-6 py-4 text-center font-bold text-rose-600">{summary.A}</td>
+                      <td className="px-6 py-4 text-right">
+                        <button 
+                          onClick={() => { if(confirm(`Hapus SEMUA data absensi ${student.nama} untuk bulan ${selectedMonth}?`)) onDeleteMonthAttendance(selectedMonth, student.nama); }}
+                          className="p-1.5 text-rose-600 hover:bg-rose-50 rounded-lg transition-colors border border-rose-100"
+                          title="Hapus Semua Absensi Bulan Ini"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </button>
+                      </td>
+                    </tr>
+                  )) : (
+                    <tr>
+                      <td colSpan={6} className="px-6 py-10 text-center text-slate-400 italic">Belum ada data siswa.</td>
+                    </tr>
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </motion.div>
       </div>
     </div>
   );
@@ -782,8 +1341,10 @@ export default function App() {
   
   const [students, setStudents] = useState<Student[]>([]);
   const [attendance, setAttendance] = useState<AttendanceItem[]>([]);
+  const [attendanceHistory, setAttendanceHistory] = useState<Record<string, AttendanceItem[]>>({});
   const [currentDate, setCurrentDate] = useState(new Date().toISOString().split('T')[0]);
   const [stats, setStats] = useState({ totalStudents: 0, attendanceToday: 0, historyCount: 0 });
+  const [globalPreviewImage, setGlobalPreviewImage] = useState<string | null>(null);
 
   useEffect(() => {
     if (user) {
@@ -797,6 +1358,9 @@ export default function App() {
   useEffect(() => {
     if (currentPage === 'attendance' && user) {
       fetchAttendance(currentDate);
+    }
+    if (currentPage === 'recap' && user) {
+      fetchAttendanceHistory();
     }
     if (currentPage === 'dashboard' && user) {
       fetchStats();
@@ -829,6 +1393,16 @@ export default function App() {
       if (res.ok) {
         const data = await res.json();
         setAttendance(data);
+      }
+    } catch (err) {}
+  };
+
+  const fetchAttendanceHistory = async () => {
+    try {
+      const res = await fetch('/api/attendance');
+      if (res.ok) {
+        const data = await res.json();
+        setAttendanceHistory(data);
       }
     } catch (err) {}
   };
@@ -902,6 +1476,17 @@ export default function App() {
     });
   };
 
+  const handleEvidenceChange = (nama: string, evidence: string) => {
+    setAttendance(prev => {
+      const existing = prev.find(a => a.nama === nama);
+      if (existing) {
+        return prev.map(a => a.nama === nama ? { ...a, evidence } : a);
+      } else {
+        return [...prev, { nama, status: 'S', evidence }];
+      }
+    });
+  };
+
   const handleSaveAttendance = async () => {
     try {
       const res = await fetch('/api/attendance', {
@@ -912,6 +1497,77 @@ export default function App() {
       if (res.ok) {
         alert('Data absensi hari ini berhasil disimpan!');
         fetchStats();
+      }
+    } catch (err) {}
+  };
+
+  const handleUpdateRecord = async (date: string, nama: string, status: AttendanceStatus) => {
+    try {
+      const records = attendanceHistory[date] || [];
+      const updatedRecords = records.map(r => r.nama === nama ? { ...r, status } : r);
+      if (!records.find(r => r.nama === nama)) {
+        updatedRecords.push({ nama, status });
+      }
+      const res = await fetch('/api/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date, data: updatedRecords }),
+      });
+      if (res.ok) {
+        setAttendanceHistory(prev => ({ ...prev, [date]: updatedRecords }));
+        fetchStats();
+      }
+    } catch (err) {}
+  };
+
+  const handleDeleteRecord = async (date: string, nama: string) => {
+    try {
+      const records = attendanceHistory[date] || [];
+      const updatedRecords = records.filter(r => r.nama !== nama);
+      const res = await fetch('/api/attendance', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ date, data: updatedRecords }),
+      });
+      if (res.ok) {
+        setAttendanceHistory(prev => ({ ...prev, [date]: updatedRecords }));
+        fetchStats();
+      }
+    } catch (err) {}
+  };
+
+  const handleDeleteMonthAttendance = async (month: string, nama: string) => {
+    try {
+      const datesToUpdate = Object.keys(attendanceHistory).filter(d => d.startsWith(month));
+      const updatedHistory = { ...attendanceHistory };
+      
+      for (const date of datesToUpdate) {
+        const records = attendanceHistory[date] || [];
+        const filtered = records.filter(r => r.nama !== nama);
+        if (filtered.length !== records.length) {
+          updatedHistory[date] = filtered;
+          await fetch('/api/attendance', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ date, data: filtered }),
+          });
+        }
+      }
+      setAttendanceHistory(updatedHistory);
+      fetchStats();
+    } catch (err) {}
+  };
+
+  const handleDeleteAccount = async () => {
+    if (!user) return;
+    try {
+      const res = await fetch('/api/user/delete-account', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: user.username }),
+      });
+      if (res.ok) {
+        handleLogout();
       }
     } catch (err) {}
   };
@@ -931,13 +1587,14 @@ export default function App() {
               type={currentPage as 'login' | 'register'} 
               onToggle={() => setCurrentPage(currentPage === 'login' ? 'register' : 'login')}
               onAuthSuccess={handleAuthSuccess}
+              onBack={() => setCurrentPage('landing')}
             />
           </div>
         );
       default:
         return (
           <div className="min-h-screen bg-[#F5F5F0] flex">
-            <Sidebar activePage={currentPage} onNavigate={setCurrentPage} onLogout={handleLogout} />
+            <Sidebar activePage={currentPage as any} onNavigate={setCurrentPage} onLogout={handleLogout} onDeleteAccount={handleDeleteAccount} />
             <main className="flex-1 ml-64 min-h-screen">
               <Header 
                 title={
@@ -945,6 +1602,7 @@ export default function App() {
                   currentPage === 'students' ? 'Database Siswa' : 'Rekap Kehadiran'
                 } 
                 user={user} 
+                onLogout={handleLogout}
               />
               <AnimatePresence mode="wait">
                 <motion.div
@@ -972,11 +1630,52 @@ export default function App() {
                       onDateChange={setCurrentDate}
                       onStatusChange={handleStatusChange}
                       onSave={handleSaveAttendance}
+                      onEvidenceChange={handleEvidenceChange}
+                      onDeleteStudent={handleDeleteStudent}
+                      onUpdateStudent={handleUpdateStudent}
+                    />
+                  )}
+                  {currentPage === 'recap' && (
+                    <RecapPage 
+                      students={students}
+                      attendanceHistory={attendanceHistory}
+                      onSelectDate={(d) => { setCurrentDate(d); setCurrentPage('attendance'); }}
+                      onPreviewImage={setGlobalPreviewImage}
+                      onUpdateAttendanceRecord={handleUpdateRecord}
+                      onDeleteAttendanceRecord={handleDeleteRecord}
+                      onDeleteMonthAttendance={handleDeleteMonthAttendance}
                     />
                   )}
                 </motion.div>
               </AnimatePresence>
             </main>
+
+            <AnimatePresence>
+              {globalPreviewImage && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center p-8 bg-slate-900/90 backdrop-blur-md">
+                  <motion.div 
+                    initial={{ opacity: 0, scale: 0.9 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    exit={{ opacity: 0, scale: 0.9 }}
+                    className="relative max-w-4xl w-full flex flex-col items-center bg-white rounded-3xl p-4 overflow-hidden shadow-2xl"
+                  >
+                    <button 
+                      onClick={() => setGlobalPreviewImage(null)}
+                      className="absolute top-4 right-4 p-3 bg-slate-100 hover:bg-slate-200 text-slate-800 rounded-full transition-all shadow-xl z-20"
+                    >
+                      <X className="w-6 h-6" />
+                    </button>
+                    <div className="aspect-[3/4] max-h-[70vh] w-full bg-slate-50 rounded-2xl overflow-hidden flex items-center justify-center border border-slate-100">
+                      <img src={globalPreviewImage} alt="Lampiran" className="max-w-full max-h-full object-contain" />
+                    </div>
+                    <div className="mt-6 flex flex-col items-center gap-1">
+                      <p className="font-black text-slate-900 text-2xl uppercase tracking-tighter">Lampiran Absensi</p>
+                      <p className="text-slate-400 text-xs font-bold uppercase tracking-widest">Detail Dokumen Terlampir</p>
+                    </div>
+                  </motion.div>
+                </div>
+              )}
+            </AnimatePresence>
           </div>
         );
     }

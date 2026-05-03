@@ -75,6 +75,18 @@ async function startServer() {
     }
   });
 
+  app.post("/api/user/delete-account", async (req, res) => {
+    try {
+      const { username } = req.body;
+      let users = await fs.readJson(USERS_FILE);
+      users = users.filter((u: any) => u.username !== username);
+      await fs.writeJson(USERS_FILE, users);
+      res.json({ message: "Akun berhasil dihapus" });
+    } catch (err) {
+      res.status(500).json({ error: "Gagal menghapus akun" });
+    }
+  });
+
   // Student Data
   app.get("/api/students", async (req, res) => {
     try {
@@ -130,6 +142,15 @@ async function startServer() {
   });
 
   // Attendance
+  app.get("/api/attendance", async (req, res) => {
+    try {
+      const attendance = await fs.readJson(ATTENDANCE_FILE);
+      res.json(attendance);
+    } catch (err) {
+      res.json({});
+    }
+  });
+
   app.get("/api/attendance/:date", async (req, res) => {
     try {
       const { date } = req.params;
@@ -160,10 +181,15 @@ async function startServer() {
       const today = new Date().toISOString().split("T")[0];
       const todayAttendance = attendance[today] || [];
       
+      // Count only dates that have at least one record with a status
+      const validHistoryCount = Object.values(attendance).filter((monthData: any) => 
+        Array.isArray(monthData) && monthData.some((item: any) => item.status)
+      ).length;
+
       res.json({
         totalStudents: students.length,
-        attendanceToday: todayAttendance.length,
-        historyCount: Object.keys(attendance).length
+        attendanceToday: todayAttendance.filter((a: any) => a.status).length,
+        historyCount: validHistoryCount
       });
     } catch (err) {
       res.json({ totalStudents: 0, attendanceToday: 0, historyCount: 0 });
