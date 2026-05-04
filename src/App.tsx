@@ -69,7 +69,15 @@ type Page = 'landing' | 'register' | 'login' | 'dashboard' | 'students' | 'atten
 
 // --- Components ---
 
-const Sidebar = ({ activePage, onNavigate, onLogout, onDeleteAccount }: { activePage: Page, onNavigate: (p: Page) => void, onLogout: () => void, onDeleteAccount: () => void }) => {
+const Sidebar = ({ activePage, onNavigate, onLogout, onDeleteAccount, logo, isOpen, onClose }: { 
+  activePage: Page, 
+  onNavigate: (p: Page) => void, 
+  onLogout: () => void, 
+  onDeleteAccount: () => void, 
+  logo: string | null,
+  isOpen: boolean,
+  onClose: () => void
+}) => {
   const [showConfirmDelete, setShowConfirmDelete] = useState(false);
   const menuItems = [
     { id: 'dashboard', icon: LayoutDashboard, label: 'Dashboard' },
@@ -79,95 +87,145 @@ const Sidebar = ({ activePage, onNavigate, onLogout, onDeleteAccount }: { active
   ];
 
   return (
-    <div className="w-64 h-screen bg-slate-900 flex flex-col fixed left-0 top-0 z-20">
-      <div className="p-6 border-b border-slate-800">
-        <h1 className="text-white font-bold text-lg tracking-tight">SMKN 1 BUNYU</h1>
-        <p className="text-slate-400 text-xs mt-1 font-medium">Sistem Absensi Digital</p>
-      </div>
-      
-      <nav className="flex-1 px-4 py-6 space-y-2 overflow-y-auto">
-        {menuItems.map((item) => (
-          <button
-            key={item.id}
-            onClick={() => onNavigate(item.id as Page)}
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-lg transition-all duration-200 group ${
-              activePage === item.id 
-                ? 'bg-blue-600 text-white shadow-lg shadow-blue-900/20' 
-                : 'text-slate-400 hover:bg-slate-800 hover:text-white'
-            }`}
-          >
-            <item.icon className={`w-5 h-5 ${activePage === item.id ? 'text-white' : 'text-slate-400 group-hover:text-white'}`} />
-            <span className="font-medium">{item.label}</span>
-          </button>
-        ))}
+    <>
+      {/* Mobile Overlay */}
+      <AnimatePresence>
+        {isOpen && (
+          <motion.div 
+            initial={{ opacity: 0 }}
+            animate={{ opacity: 1 }}
+            exit={{ opacity: 0 }}
+            onClick={onClose}
+            className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-30 lg:hidden"
+          />
+        )}
+      </AnimatePresence>
 
-        <div className="pt-4 mt-4 border-t border-slate-800">
-          {!showConfirmDelete ? (
-            <button 
-              onClick={() => {
-                if (window.confirm('APAKAH ANDA YAKIN Ingin Menghapus Akun ini secara permanen?')) {
-                  setShowConfirmDelete(true);
-                }
-              }}
-              className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-rose-500/10 hover:text-rose-400 rounded-lg transition-all font-medium text-xs uppercase tracking-widest group"
-            >
-              <Trash2 className="w-4 h-4" />
-              <span>Hapus Akun</span>
-            </button>
-          ) : (
-            <div className="bg-rose-600 rounded-lg p-3 animate-in fade-in zoom-in duration-300 shadow-lg shadow-rose-900/20">
-              <p className="text-[10px] text-white font-black text-center mb-3 px-2 leading-tight uppercase tracking-tighter">Konfirmasi Akhir: Hapus Permanen?</p>
-              <div className="flex gap-2">
-                <button 
-                  onClick={onDeleteAccount}
-                  className="flex-1 bg-white text-rose-600 py-2 rounded shadow-sm text-[10px] font-black hover:bg-slate-100 transition-colors uppercase"
-                >YA, HAPUS</button>
-                <button 
-                  onClick={() => setShowConfirmDelete(false)}
-                  className="flex-1 bg-rose-800 text-rose-100 py-2 rounded text-[10px] font-black hover:bg-rose-700 transition-colors uppercase"
-                >BATAL</button>
+      <motion.div 
+        className={`w-64 h-screen bg-slate-900 flex flex-col fixed left-0 top-0 z-40 transition-transform duration-300 transform lg:translate-x-0 ${isOpen ? 'translate-x-0' : '-translate-x-full'}`}
+      >
+        <div className="p-6 border-b border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            {logo ? (
+              <div className="w-10 h-10 bg-white/10 rounded-lg flex items-center justify-center overflow-hidden p-1">
+                <img src={logo} className="w-full h-full object-contain" alt="Logo" />
               </div>
+            ) : (
+              <School className="text-white w-8 h-8" />
+            )}
+            <div>
+              <h1 className="text-white font-bold text-sm tracking-tight leading-none uppercase">SMKN 1 Bunyu</h1>
+              <p className="text-slate-500 text-[9px] mt-1 font-bold uppercase tracking-tighter">Absensi Digital</p>
             </div>
-          )}
+          </div>
+          <button onClick={onClose} className="lg:hidden text-slate-400 hover:text-white">
+            <X className="w-6 h-6" />
+          </button>
         </div>
-      </nav>
+        
+        <nav className="flex-1 px-4 py-6 space-y-1.5 overflow-y-auto">
+          {menuItems.map((item) => (
+            <button
+              key={item.id}
+              onClick={() => { onNavigate(item.id as Page); onClose(); }}
+              className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl transition-all duration-200 group relative ${
+                activePage === item.id 
+                  ? 'bg-blue-600 text-white shadow-lg shadow-blue-600/20' 
+                  : 'text-slate-400 hover:bg-slate-800/50 hover:text-white'
+              }`}
+            >
+              <item.icon className={`w-5 h-5 ${activePage === item.id ? 'text-white' : 'text-slate-500 group-hover:text-white'}`} />
+              <span className="font-bold text-sm">{item.label}</span>
+              {activePage === item.id && (
+                <motion.div layoutId="activeNav" className="absolute right-2 w-1.5 h-1.5 rounded-full bg-white opacity-40" />
+              )}
+            </button>
+          ))}
 
-      <div className="p-4 pb-8 border-t border-slate-800">
-        <button 
-          onClick={onLogout}
-          className="w-full flex items-center gap-3 px-4 py-3 text-rose-400 hover:bg-rose-500/10 rounded-lg transition-colors font-medium group"
-        >
-          <LogOut className="w-5 h-5 group-hover:-translate-x-1 transition-transform" />
-          <span>Keluar</span>
-        </button>
-      </div>
-    </div>
+          <div className="pt-4 mt-4 border-t border-slate-800/50">
+            {!showConfirmDelete ? (
+              <button 
+                onClick={() => {
+                  if (window.confirm('Hapus Akun secara permanen?')) {
+                    setShowConfirmDelete(true);
+                  }
+                }}
+                className="w-full flex items-center gap-3 px-4 py-3 text-slate-500 hover:bg-rose-500/10 hover:text-rose-400 rounded-xl transition-all font-bold text-xs uppercase tracking-widest group"
+              >
+                <Trash2 className="w-4 h-4 opacity-50 group-hover:opacity-100" />
+                <span>Hapus Akun</span>
+              </button>
+            ) : (
+              <div className="bg-rose-600/10 border border-rose-500/20 rounded-xl p-3 animate-in fade-in zoom-in duration-300">
+                <p className="text-[9px] text-rose-400 font-black text-center mb-3 uppercase tracking-widest leading-tight">Yakin Hapus Permanen?</p>
+                <div className="flex gap-2">
+                  <button 
+                    onClick={onDeleteAccount}
+                    className="flex-1 bg-rose-600 text-white py-2 rounded-lg text-[9px] font-black hover:bg-rose-500 transition-colors uppercase tracking-widest"
+                  >Hapus</button>
+                  <button 
+                    onClick={() => setShowConfirmDelete(false)}
+                    className="flex-1 bg-slate-800 text-slate-300 py-2 rounded-lg text-[9px] font-black hover:bg-slate-700 transition-colors uppercase tracking-widest"
+                  >Batal</button>
+                </div>
+              </div>
+            )}
+          </div>
+        </nav>
+
+        <div className="p-4 mb-4 border-t border-slate-800/50">
+          <button 
+            onClick={onLogout}
+            className="w-full flex items-center gap-3 px-4 py-3 text-slate-400 hover:bg-rose-500/10 hover:text-rose-400 rounded-xl transition-all font-bold group"
+          >
+            <div className="w-8 h-8 rounded-lg bg-slate-800 flex items-center justify-center group-hover:bg-rose-500/20 transition-colors">
+              <LogOut className="w-4 h-4 group-hover:-translate-x-0.5 transition-transform" />
+            </div>
+            <span className="text-sm">Keluar Sesi</span>
+          </button>
+        </div>
+      </motion.div>
+    </>
   );
 };
 
-const Header = ({ title, user, onLogout }: { title: string, user: User | null, onLogout: () => void }) => (
-  <header className="h-20 bg-white border-b border-slate-200 flex items-center justify-between px-8 sticky top-0 z-10 w-full">
-    <div className="flex items-center gap-4">
+
+const Header = ({ title, user, onLogout, logo, onToggleSidebar }: { title: string, user: User | null, onLogout: () => void, logo: string | null, onToggleSidebar: () => void }) => (
+  <header className="h-20 bg-white/80 backdrop-blur-md border-b border-slate-200 flex items-center justify-between px-4 sm:px-8 sticky top-0 z-20 w-full">
+    <div className="flex items-center gap-3 sm:gap-4">
+      <button 
+        onClick={onToggleSidebar}
+        className="lg:hidden p-2 text-slate-600 hover:bg-slate-100 rounded-lg transition-colors"
+      >
+        <LayoutDashboard className="w-6 h-6" />
+      </button>
+
+      {logo && (
+        <div className="hidden xs:flex w-10 h-10 sm:w-12 sm:h-12 bg-slate-50 border border-slate-100 rounded-xl items-center justify-center overflow-hidden p-1 sm:p-2">
+          <img src={logo} className="w-full h-full object-contain" alt="Logo" />
+        </div>
+      )}
       <div>
-        <h2 className="text-xl font-bold text-slate-800">{title}</h2>
-        <p className="text-slate-500 text-xs italic font-medium">
+        <h2 className="text-sm sm:text-xl font-bold text-slate-800 line-clamp-1">{title}</h2>
+        <p className="text-[10px] sm:text-xs text-slate-500 italic font-medium whitespace-nowrap">
           {new Intl.DateTimeFormat('id-ID', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' }).format(new Date())}
         </p>
       </div>
     </div>
-    <div className="flex items-center gap-6">
-      <div className="flex items-center gap-4 border-r border-slate-100 pr-6">
-        <div className="text-right hidden sm:block">
+    
+    <div className="flex items-center gap-2 sm:gap-6">
+      <div className="flex items-center gap-2 sm:gap-4 lg:border-r lg:border-slate-100 lg:pr-6">
+        <div className="text-right hidden md:block">
           <p className="text-sm font-bold text-slate-800">{user?.name}</p>
           <p className="text-[10px] uppercase font-bold text-slate-400 tracking-wider font-mono">{user?.username}</p>
         </div>
-        <div className="w-10 h-10 rounded-full bg-slate-100 border border-slate-200 flex items-center justify-center font-bold text-slate-600 text-sm">
+        <div className="w-8 h-8 sm:w-10 sm:h-10 rounded-full bg-blue-600 shadow-lg shadow-blue-600/20 flex items-center justify-center font-bold text-white text-xs sm:text-sm">
           {user?.name?.[0]?.toUpperCase()}
         </div>
       </div>
       <button 
         onClick={onLogout}
-        className="flex items-center gap-2 text-rose-500 hover:text-rose-600 font-bold text-sm transition-colors group"
+        className="hidden sm:flex items-center gap-2 text-rose-500 hover:text-rose-600 font-bold text-sm transition-colors group"
       >
         <LogOut className="w-4 h-4 group-hover:-translate-x-1 transition-transform" />
         <span>Keluar</span>
@@ -176,7 +234,7 @@ const Header = ({ title, user, onLogout }: { title: string, user: User | null, o
   </header>
 );
 
-const LandingPage = ({ onStart }: { onStart: () => void }) => (
+const LandingPage = ({ onStart, logo, onLogoChange }: { onStart: () => void, logo: string | null, onLogoChange: (file: File) => void }) => (
   <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 relative overflow-hidden text-white">
     <div className="absolute inset-0 z-0 opacity-20 pointer-events-none">
         <div className="absolute top-[-10%] left-[-10%] w-[40%] h-[40%] bg-blue-600 blur-[120px] rounded-full" />
@@ -186,17 +244,40 @@ const LandingPage = ({ onStart }: { onStart: () => void }) => (
     <motion.div 
       initial={{ opacity: 0, y: 20 }}
       animate={{ opacity: 1, y: 0 }}
-      className="text-center z-10 max-w-2xl px-6"
+      className="text-center z-10 max-w-2xl px-6 flex flex-col items-center"
     >
-      <div className="w-20 h-20 bg-blue-600 rounded-2xl flex items-center justify-center mx-auto mb-8 shadow-2xl shadow-blue-600/20">
-        <School className="text-white w-10 h-10" />
+      <div className="relative group mb-8">
+        <div className="w-40 h-40 bg-white rounded-3xl flex items-center justify-center shadow-2xl shadow-blue-600/20 overflow-hidden border-2 border-slate-700/50 p-5">
+          {logo ? (
+            <img src={logo} className="w-full h-full object-contain" alt="School Logo" />
+          ) : (
+            <div className="w-full h-full bg-slate-800 flex items-center justify-center">
+              <School className="text-white w-14 h-14" />
+            </div>
+          )}
+        </div>
+        
+        <label className="absolute -bottom-2 -right-2 w-10 h-10 bg-blue-600 hover:bg-blue-500 rounded-full flex items-center justify-center cursor-pointer shadow-lg transition-transform hover:scale-110 active:scale-95 border-4 border-slate-900">
+          <Plus className="w-5 h-5 text-white" />
+          <input 
+            type="file" 
+            className="hidden" 
+            accept="image/*" 
+            onChange={(e) => {
+              const file = e.target.files?.[0];
+              if (file) onLogoChange(file);
+            }} 
+          />
+        </label>
+        
+        <div className="absolute -top-12 left-1/2 -translate-x-1/2 bg-slate-800 text-[10px] font-bold px-3 py-1.5 rounded-full border border-slate-700 opacity-0 group-hover:opacity-100 transition-opacity whitespace-nowrap pointer-events-none tracking-widest text-blue-400">
+          UBAH LOGO SEKOLAH
+        </div>
       </div>
-      <h1 className="text-5xl sm:text-7xl font-bold tracking-tight mb-4">
+
+      <h1 className="text-5xl sm:text-7xl font-bold tracking-tight mb-10">
         SMKN 1 BUNYU
       </h1>
-      <p className="text-slate-400 font-medium text-lg mb-12 max-w-md mx-auto">
-        Sistem Absensi Digital Terpadu untuk Manajemen Sekolah yang Lebih Efisien dan Presisi.
-      </p>
       <button 
         type="button"
         onClick={onStart}
@@ -209,68 +290,51 @@ const LandingPage = ({ onStart }: { onStart: () => void }) => (
   </div>
 );
 
-const AuthForm = ({ type, onToggle, onAuthSuccess, onBack }: { type: 'login' | 'register', onToggle: () => void, onAuthSuccess: (user: User) => void, onBack: () => void }) => {
+const AuthForm = ({ type, onToggle, onAuthSuccess, onBack, logo }: { type: 'login' | 'register', onToggle: () => void, onAuthSuccess: (user: User) => void, onBack: () => void, logo: string | null }) => {
   const [formData, setFormData] = useState({ name: '', username: '', password: '' });
   const [loading, setLoading] = useState(false);
   const [message, setMessage] = useState<{ type: 'success' | 'error', text: string } | null>(null);
   const [showPassword, setShowPassword] = useState(false);
-  const [recentUsers, setRecentUsers] = useState<any[]>([]);
-
-  useEffect(() => {
-    const fetchUsers = async () => {
-      try {
-        const res = await fetch('/api/users');
-        if (res.ok) {
-          const data = await res.json();
-          setRecentUsers(data);
-        }
-      } catch (err) {}
-    };
-    if (type === 'login') fetchUsers();
-  }, [type]);
-
-  const handleQuickLogin = (user: any) => {
-    setFormData({ ...formData, username: user.username });
-  };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setLoading(true);
     setMessage(null);
-
-    const endpoint = type === 'login' ? '/api/login' : '/api/register';
     
     try {
-      const res = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(formData),
-      });
+      const users = JSON.parse(localStorage.getItem('app_users') || '[]');
       
-      const text = await res.text();
-      let data;
-      try {
-        data = JSON.parse(text);
-      } catch (e) {
-        throw new Error(`Server response error: ${text.slice(0, 50)}...`);
-      }
-      
-      if (res.ok) {
-        setMessage({ type: 'success', text: data.message });
-        if (type === 'login') {
-          setTimeout(() => onAuthSuccess(data.user), 1000);
-        } else {
-          setTimeout(() => onToggle(), 1500);
+      if (type === 'register') {
+        const exists = users.find((u: any) => u.username === formData.username);
+        if (exists) {
+          throw new Error('Username sudah terdaftar.');
         }
+        
+        const newUser = {
+          name: formData.name,
+          username: formData.username,
+          password: formData.password // Simpan password simpel untuk demo lokal
+        };
+        
+        users.push(newUser);
+        localStorage.setItem('app_users', JSON.stringify(users));
+
+        setMessage({ type: 'success', text: 'Registrasi berhasil!' });
+        setTimeout(() => onToggle(), 1500);
       } else {
-        setMessage({ type: 'error', text: data.error || 'Terjadi kesalahan sistem' });
+        // Login
+        const found = users.find((u: any) => u.username === formData.username && u.password === formData.password);
+        
+        if (found) {
+          const userData = { name: found.name, username: found.username };
+          setMessage({ type: 'success', text: 'Login berhasil!' });
+          setTimeout(() => onAuthSuccess(userData), 1000);
+        } else {
+          throw new Error('Username atau password salah.');
+        }
       }
-    } catch (err) {
-      console.error('Auth error:', err);
-      const errorMessage = !navigator.onLine 
-        ? 'Koneksi terputus. Periksa jaringan internet Anda.' 
-        : 'Gagal terhubung ke server. Silakan coba lagi nanti.';
-      setMessage({ type: 'error', text: errorMessage });
+    } catch (err: any) {
+      setMessage({ type: 'error', text: err.message || 'Terjadi kesalahan' });
     } finally {
       setLoading(false);
     }
@@ -280,11 +344,17 @@ const AuthForm = ({ type, onToggle, onAuthSuccess, onBack }: { type: 'login' | '
     <motion.div 
       initial={{ opacity: 0, scale: 0.95 }}
       animate={{ opacity: 1, scale: 1 }}
-      className="max-w-md w-full p-10 bg-white rounded-2xl shadow-xl border border-slate-200 z-10 relative"
+      className="max-w-md w-full p-6 sm:p-10 bg-white rounded-3xl shadow-2xl border border-slate-200 z-10 relative mx-4"
     >
       <div className="mb-10 text-center">
-        <div className="w-12 h-12 bg-blue-600 rounded-xl flex items-center justify-center mx-auto mb-4">
-          <School className="text-white w-6 h-6" />
+        <div className="w-24 h-24 bg-slate-50 border border-slate-100 rounded-2xl flex items-center justify-center mx-auto mb-4 overflow-hidden shadow-lg p-3">
+          {logo ? (
+            <img src={logo} className="w-full h-full object-contain" alt="Logo" />
+          ) : (
+            <div className="w-full h-full bg-blue-600 rounded-xl flex items-center justify-center">
+              <School className="text-white w-8 h-8" />
+            </div>
+          )}
         </div>
         <h2 className="text-2xl font-bold text-slate-800 tracking-tight">
           {type === 'login' ? 'Selamat Datang' : 'Registrasi Guru'}
@@ -292,33 +362,6 @@ const AuthForm = ({ type, onToggle, onAuthSuccess, onBack }: { type: 'login' | '
         <p className="text-slate-500 text-sm font-medium mt-1">
           Sistem Absensi SMKN 1 BUNYU
         </p>
-        
-        {type === 'login' && recentUsers.length > 0 && (
-          <div className="mt-6 space-y-3">
-            <div className="flex items-center justify-center gap-2">
-              <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">Masuk Cepat:</p>
-              <button 
-                onClick={() => setRecentUsers([])}
-                className="text-[9px] font-bold text-slate-300 hover:text-slate-500 uppercase transition-colors"
-                title="Bersihkan daftar"
-              >
-                (Bersihkan)
-              </button>
-            </div>
-            <div className="flex flex-wrap justify-center gap-2">
-              {recentUsers.map((u, i) => (
-                <button
-                  key={i}
-                  type="button"
-                  onClick={() => handleQuickLogin(u)}
-                  className="px-3 py-1.5 bg-slate-100 hover:bg-blue-50 text-slate-700 hover:text-blue-700 rounded-full text-xs font-bold border border-slate-200 hover:border-blue-200 transition-all shrink-0 uppercase"
-                >
-                  {u.name}
-                </button>
-              ))}
-            </div>
-          </div>
-        )}
       </div>
 
       {message && (
@@ -500,7 +543,7 @@ const generateWordReport = async (title: string, date: string, data: { student: 
 // --- Page Components ---
 
 const Dashboard = ({ stats }: { stats: any }) => (
-  <div className="p-8 space-y-8">
+  <div className="p-4 sm:p-8 space-y-6 sm:space-y-8">
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       {[
         { label: 'Total Siswa', value: stats.totalStudents || 0, icon: Users, bgColor: 'bg-indigo-50', borderColor: 'border-indigo-100', textColor: 'text-indigo-700', valColor: 'text-indigo-800' },
@@ -601,7 +644,6 @@ const StudentsPage = ({ students, onImport, onDeleteStudent, onDeleteAll, onUpda
           alert('Tidak ada data yang valid ditemukan di semua sheet. Pastikan ada kolom NAMA, NOMOR, KELAS, JURUSAN.');
         }
       } catch (err) {
-        console.error('Excel parse error:', err);
         alert('Gagal membaca file Excel. Pastikan format file benar.');
       }
     };
@@ -630,9 +672,9 @@ const StudentsPage = ({ students, onImport, onDeleteStudent, onDeleteAll, onUpda
   };
 
   return (
-    <div className="p-8 space-y-8">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
-        <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-lg px-4 py-2.5 w-full max-w-md focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
+    <div className="p-4 sm:p-8 space-y-6 sm:space-y-8">
+      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
+        <div className="flex items-center gap-3 bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 w-full md:max-w-xs focus-within:ring-2 focus-within:ring-blue-500/20 transition-all">
           <Search className="w-5 h-5 text-slate-400" />
           <input 
             type="text" 
@@ -795,7 +837,9 @@ const StudentsPage = ({ students, onImport, onDeleteStudent, onDeleteAll, onUpda
                 <button 
                   onClick={handleSave}
                   className="flex-1 py-2.5 text-sm font-bold bg-blue-600 text-white hover:bg-blue-700 rounded-lg shadow-lg shadow-blue-900/10 transition-all"
-                >Simpan</button>
+                >
+                  {isAdding ? 'Tambah Siswa' : 'Simpan Perubahan'}
+                </button>
               </div>
             </motion.div>
           </div>
@@ -883,7 +927,7 @@ const AttendancePage = ({ students, attendance, date, onDateChange, onStatusChan
   };
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-4 sm:p-8 space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6">
         <div className="flex items-center gap-3">
           <div className="relative">
@@ -1210,7 +1254,7 @@ const RecapPage = ({ students, attendanceHistory, onSelectDate, onPreviewImage, 
   }, [filteredStudents, dates, attendanceHistory]);
 
   return (
-    <div className="p-8 space-y-8">
+    <div className="p-4 sm:p-8 space-y-6 sm:space-y-8">
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-6 bg-white p-6 rounded-2xl border border-slate-200 shadow-sm">
         <div className="flex flex-wrap items-center gap-4">
           <div className="space-y-1">
@@ -1345,13 +1389,17 @@ export default function App() {
   const [currentDate, setCurrentDate] = useState(new Date().toISOString().split('T')[0]);
   const [stats, setStats] = useState({ totalStudents: 0, attendanceToday: 0, historyCount: 0 });
   const [globalPreviewImage, setGlobalPreviewImage] = useState<string | null>(null);
+  const [logo, setLogo] = useState<string | null>(() => localStorage.getItem('app_logo'));
+  const [isSidebarOpen, setIsSidebarOpen] = useState(false);
 
   useEffect(() => {
     if (user) {
       if (currentPage === 'landing' || currentPage === 'login' || currentPage === 'register') {
         setCurrentPage('dashboard');
       }
-      fetchData();
+      fetchStudents();
+      fetchAttendance(currentDate);
+      fetchAttendanceHistory();
     }
   }, [user]);
 
@@ -1363,48 +1411,44 @@ export default function App() {
       fetchAttendanceHistory();
     }
     if (currentPage === 'dashboard' && user) {
-      fetchStats();
+      updateStats(students, attendanceHistory);
     }
   }, [currentPage, currentDate]);
 
-  const fetchData = async () => {
-    try {
-      const res = await fetch('/api/students');
-      if (res.ok) {
-        const data = await res.json();
-        setStudents(data);
-      }
-      fetchStats();
-    } catch (err) {
-      console.error('Fetch failed', err);
-    }
+  const updateStats = (currentStudents: Student[], history: Record<string, AttendanceItem[]>) => {
+    const today = new Date().toISOString().split("T")[0];
+    const todayAttendance = history[today] || [];
+    
+    const validHistoryCount = Object.values(history).filter((monthData: any) => 
+      Array.isArray(monthData) && monthData.some((item: any) => item.status)
+    ).length;
+
+    setStats({
+      totalStudents: currentStudents.length,
+      attendanceToday: todayAttendance.filter((a: any) => a.status).length,
+      historyCount: validHistoryCount
+    });
   };
 
-  const fetchStats = async () => {
-    try {
-      const res = await fetch('/api/stats');
-      if (res.ok) setStats(await res.json());
-    } catch (err) {}
+  const fetchStudents = () => {
+    const data = JSON.parse(localStorage.getItem('app_students') || '[]');
+    setStudents(data);
+    updateStats(data, attendanceHistory);
   };
 
-  const fetchAttendance = async (date: string) => {
-    try {
-      const res = await fetch(`/api/attendance/${date}`);
-      if (res.ok) {
-        const data = await res.json();
-        setAttendance(data);
-      }
-    } catch (err) {}
+  const fetchStats = () => {
+    updateStats(students, attendanceHistory);
   };
 
-  const fetchAttendanceHistory = async () => {
-    try {
-      const res = await fetch('/api/attendance');
-      if (res.ok) {
-        const data = await res.json();
-        setAttendanceHistory(data);
-      }
-    } catch (err) {}
+  const fetchAttendance = (date: string) => {
+    const history = JSON.parse(localStorage.getItem('app_attendance') || '{}');
+    setAttendance(history[date] || []);
+  };
+
+  const fetchAttendanceHistory = () => {
+    const history = JSON.parse(localStorage.getItem('app_attendance') || '{}');
+    setAttendanceHistory(history);
+    updateStats(students, history);
   };
 
   const handleAuthSuccess = (userData: User) => {
@@ -1418,51 +1462,29 @@ export default function App() {
     setCurrentPage('landing');
   };
 
-  const handleImport = async (newStudents: Student[]) => {
-    try {
-      const res = await fetch('/api/students/import', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ students: newStudents }),
-      });
-      if (res.ok) {
-        setStudents(newStudents);
-        fetchStats();
-      }
-    } catch (err) {}
+  const handleImport = (newStudents: Student[]) => {
+    localStorage.setItem('app_students', JSON.stringify(newStudents));
+    setStudents(newStudents);
+    fetchStats();
   };
 
-  const handleDeleteStudent = async (nomor: string) => {
-    try {
-      const res = await fetch(`/api/students/${nomor}`, { method: 'DELETE' });
-      if (res.ok) {
-        setStudents(prev => prev.filter(s => s.nomor !== nomor));
-        fetchStats();
-      }
-    } catch (err) {}
+  const handleDeleteStudent = (nomor: string) => {
+    const next = students.filter(s => s.nomor !== nomor);
+    localStorage.setItem('app_students', JSON.stringify(next));
+    setStudents(next);
+    fetchStats();
   };
 
-  const handleDeleteAll = async () => {
-    try {
-      const res = await fetch('/api/students', { method: 'DELETE' });
-      if (res.ok) {
-        setStudents([]);
-        fetchStats();
-      }
-    } catch (err) {}
+  const handleDeleteAll = () => {
+    localStorage.setItem('app_students', JSON.stringify([]));
+    setStudents([]);
+    fetchStats();
   };
 
-  const handleUpdateStudent = async (oldNomor: string, updated: Student) => {
-    try {
-      const res = await fetch(`/api/students/${oldNomor}`, {
-        method: 'PUT',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(updated),
-      });
-      if (res.ok) {
-        setStudents(prev => prev.map(s => s.nomor === oldNomor ? updated : s));
-      }
-    } catch (err) {}
+  const handleUpdateStudent = (oldNomor: string, updated: Student) => {
+    const next = students.map(s => s.nomor === oldNomor ? updated : s);
+    localStorage.setItem('app_students', JSON.stringify(next));
+    setStudents(next);
   };
 
   const handleStatusChange = (nama: string, status: AttendanceStatus) => {
@@ -1487,94 +1509,81 @@ export default function App() {
     });
   };
 
-  const handleSaveAttendance = async () => {
-    try {
-      const res = await fetch('/api/attendance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date: currentDate, data: attendance }),
-      });
-      if (res.ok) {
-        alert('Data absensi hari ini berhasil disimpan!');
-        fetchStats();
-      }
-    } catch (err) {}
+  const handleSaveAttendance = () => {
+    const history = JSON.parse(localStorage.getItem('app_attendance') || '{}');
+    history[currentDate] = attendance;
+    localStorage.setItem('app_attendance', JSON.stringify(history));
+    
+    alert('Data absensi hari ini berhasil disimpan!');
+    
+    setAttendanceHistory(history);
+    updateStats(students, history);
   };
 
-  const handleUpdateRecord = async (date: string, nama: string, status: AttendanceStatus) => {
-    try {
-      const records = attendanceHistory[date] || [];
+  const handleUpdateRecord = (date: string, nama: string, status: AttendanceStatus) => {
+    setAttendanceHistory(prev => {
+      const records = prev[date] || [];
       const updatedRecords = records.map(r => r.nama === nama ? { ...r, status } : r);
       if (!records.find(r => r.nama === nama)) {
         updatedRecords.push({ nama, status });
       }
-      const res = await fetch('/api/attendance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date, data: updatedRecords }),
-      });
-      if (res.ok) {
-        setAttendanceHistory(prev => ({ ...prev, [date]: updatedRecords }));
-        fetchStats();
-      }
-    } catch (err) {}
-  };
-
-  const handleDeleteRecord = async (date: string, nama: string) => {
-    try {
-      const records = attendanceHistory[date] || [];
-      const updatedRecords = records.filter(r => r.nama !== nama);
-      const res = await fetch('/api/attendance', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ date, data: updatedRecords }),
-      });
-      if (res.ok) {
-        setAttendanceHistory(prev => ({ ...prev, [date]: updatedRecords }));
-        fetchStats();
-      }
-    } catch (err) {}
-  };
-
-  const handleDeleteMonthAttendance = async (month: string, nama: string) => {
-    try {
-      const datesToUpdate = Object.keys(attendanceHistory).filter(d => d.startsWith(month));
-      const updatedHistory = { ...attendanceHistory };
       
-      for (const date of datesToUpdate) {
-        const records = attendanceHistory[date] || [];
-        const filtered = records.filter(r => r.nama !== nama);
-        if (filtered.length !== records.length) {
-          updatedHistory[date] = filtered;
-          await fetch('/api/attendance', {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ date, data: filtered }),
-          });
-        }
-      }
-      setAttendanceHistory(updatedHistory);
-      fetchStats();
-    } catch (err) {}
+      const next = { ...prev, [date]: updatedRecords };
+      localStorage.setItem('app_attendance', JSON.stringify(next));
+      updateStats(students, next);
+      return next;
+    });
   };
 
-  const handleDeleteAccount = async () => {
-    if (!user) return;
-    try {
-      const res = await fetch('/api/user/delete-account', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: user.username }),
+  const handleDeleteRecord = (date: string, nama: string) => {
+    setAttendanceHistory(prev => {
+      const records = prev[date] || [];
+      const updatedRecords = records.filter(r => r.nama !== nama);
+      const next = { ...prev, [date]: updatedRecords };
+      localStorage.setItem('app_attendance', JSON.stringify(next));
+      updateStats(students, next);
+      return next;
+    });
+  };
+
+  const handleDeleteMonthAttendance = (month: string, nama: string) => {
+    setAttendanceHistory(prev => {
+      const next = { ...prev };
+      Object.keys(next).forEach(date => {
+        if (date.startsWith(month)) {
+          next[date] = next[date].filter(r => r.nama !== nama);
+        }
       });
-      if (res.ok) {
-        handleLogout();
-      }
-    } catch (err) {}
+      localStorage.setItem('app_attendance', JSON.stringify(next));
+      updateStats(students, next);
+      return next;
+    });
+  };
+
+  const handleDeleteAccount = () => {
+    if (!user) return;
+    if (!confirm('Peringatan: Menghapus akun akan mengeluarkan Anda dari sistem. Lanjutkan?')) return;
+    
+    const users = JSON.parse(localStorage.getItem('app_users') || '[]');
+    const nextUsers = users.filter((u: any) => u.username !== user.username);
+    localStorage.setItem('app_users', JSON.stringify(nextUsers));
+    
+    handleLogout();
+  };
+
+  const handleLogoUpdate = (file: File) => {
+    const reader = new FileReader();
+    reader.onload = (e) => {
+      const base64 = e.target?.result as string;
+      setLogo(base64);
+      localStorage.setItem('app_logo', base64);
+    };
+    reader.readAsDataURL(file);
   };
 
   const renderContent = () => {
     switch (currentPage) {
-      case 'landing': return <LandingPage onStart={() => setCurrentPage('login')} />;
+      case 'landing': return <LandingPage onStart={() => setCurrentPage('login')} logo={logo} onLogoChange={handleLogoUpdate} />;
       case 'login': 
       case 'register': 
         return (
@@ -1588,14 +1597,23 @@ export default function App() {
               onToggle={() => setCurrentPage(currentPage === 'login' ? 'register' : 'login')}
               onAuthSuccess={handleAuthSuccess}
               onBack={() => setCurrentPage('landing')}
+              logo={logo}
             />
           </div>
         );
       default:
         return (
           <div className="min-h-screen bg-[#F5F5F0] flex">
-            <Sidebar activePage={currentPage as any} onNavigate={setCurrentPage} onLogout={handleLogout} onDeleteAccount={handleDeleteAccount} />
-            <main className="flex-1 ml-64 min-h-screen">
+            <Sidebar 
+              activePage={currentPage as any} 
+              onNavigate={setCurrentPage} 
+              onLogout={handleLogout} 
+              onDeleteAccount={handleDeleteAccount} 
+              logo={logo} 
+              isOpen={isSidebarOpen}
+              onClose={() => setIsSidebarOpen(false)}
+            />
+            <main className="flex-1 lg:ml-64 min-h-screen w-full overflow-x-hidden">
               <Header 
                 title={
                   currentPage === 'dashboard' ? 'Overview' : 
@@ -1603,6 +1621,8 @@ export default function App() {
                 } 
                 user={user} 
                 onLogout={handleLogout}
+                logo={logo}
+                onToggleSidebar={() => setIsSidebarOpen(!isSidebarOpen)}
               />
               <AnimatePresence mode="wait">
                 <motion.div

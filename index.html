@@ -5,26 +5,33 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta name="theme-color" content="#2563eb" />
     <link rel="apple-touch-icon" href="/icon.svg" />
-    <link rel="manifest" href="/manifest.json" />
     <title>Absensi SMKN 1 BUNYU</title>
     <script>
-      // Menyembunyikan pesan eror websocket yang mengganggu di mode pengembangan
+      // Sembunyikan pesan eror websocket dan console noise lainnya
       (function() {
         const originalError = console.error;
+        const originalWarn = console.warn;
+        
         console.error = function(...args) {
-          if (args[0] && typeof args[0] === 'string' && (args[0].includes('websocket') || args[0].includes('WebSocket'))) return;
+          const msg = (args[0] && typeof args[0] === 'string') ? args[0].toLowerCase() : '';
+          if (msg.includes('websocket') || msg.includes('vite') || msg.includes('hmr') || msg.includes('socket')) return;
           originalError.apply(console, args);
         };
-      })();
 
-      // Registrasi Service Worker untuk PWA
-      if ('serviceWorker' in navigator) {
-        window.addEventListener('load', () => {
-          navigator.serviceWorker.register('/sw.js')
-            .then(reg => console.log('SW Registered'))
-            .catch(err => console.log('SW Registration failed', err));
+        console.warn = function(...args) {
+          const msg = (args[0] && typeof args[0] === 'string') ? args[0].toLowerCase() : '';
+          if (msg.includes('websocket') || msg.includes('vite')) return;
+          originalWarn.apply(console, args);
+        };
+
+        // Tangani rejection yang tidak tertangkap terkait websocket
+        window.addEventListener('unhandledrejection', function(event) {
+          const msg = (event.reason && event.reason.message) ? event.reason.message.toLowerCase() : '';
+          if (msg.includes('websocket') || msg.includes('socket')) {
+            event.preventDefault();
+          }
         });
-      }
+      })();
     </script>
   </head>
   <body>
