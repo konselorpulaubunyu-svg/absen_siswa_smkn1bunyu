@@ -542,7 +542,7 @@ const generateWordReport = async (title: string, date: string, data: { student: 
 
 // --- Page Components ---
 
-const Dashboard = ({ stats }: { stats: any }) => (
+const Dashboard = ({ stats, deferredPrompt, onInstall }: { stats: any, deferredPrompt: any, onInstall: () => void }) => (
   <div className="p-4 sm:p-8 space-y-6 sm:space-y-8">
     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
       {[
@@ -567,6 +567,30 @@ const Dashboard = ({ stats }: { stats: any }) => (
         </motion.div>
       ))}
     </div>
+
+    {deferredPrompt && (
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95 }}
+        animate={{ opacity: 1, scale: 1 }}
+        className="bg-blue-600 rounded-2xl p-6 sm:p-8 text-white shadow-xl shadow-blue-500/20 flex flex-col sm:flex-row items-center justify-between gap-6"
+      >
+        <div className="flex items-center gap-4">
+          <div className="w-16 h-16 bg-white/20 rounded-2xl flex items-center justify-center backdrop-blur-md">
+            <Download className="w-8 h-8 text-white" />
+          </div>
+          <div>
+            <h4 className="text-xl font-bold">Instal Aplikasi Presensi</h4>
+            <p className="text-blue-100 text-sm font-medium mt-1">Akses lebih cepat & lancar langsung dari layar utama perangkat Anda.</p>
+          </div>
+        </div>
+        <button 
+          onClick={onInstall}
+          className="w-full sm:w-auto px-8 py-3 bg-white text-blue-600 rounded-xl font-bold hover:bg-blue-50 transition-all shadow-lg active:scale-95 whitespace-nowrap"
+        >
+          Instal Sekarang
+        </button>
+      </motion.div>
+    )}
 
     <div className="bg-white p-8 rounded-xl border border-slate-200 shadow-sm">
       <h3 className="text-xl font-bold text-slate-800 mb-4">Selamat Datang di Portal Guru</h3>
@@ -1391,6 +1415,29 @@ export default function App() {
   const [globalPreviewImage, setGlobalPreviewImage] = useState<string | null>(null);
   const [logo, setLogo] = useState<string | null>(() => localStorage.getItem('app_logo'));
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
+
+  useEffect(() => {
+    const handleBeforeInstallPrompt = (e: any) => {
+      e.preventDefault();
+      setDeferredPrompt(e);
+    };
+
+    window.addEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+
+    return () => {
+      window.removeEventListener('beforeinstallprompt', handleBeforeInstallPrompt);
+    };
+  }, []);
+
+  const handleInstallApp = async () => {
+    if (!deferredPrompt) return;
+    deferredPrompt.prompt();
+    const { outcome } = await deferredPrompt.userChoice;
+    if (outcome === 'accepted') {
+      setDeferredPrompt(null);
+    }
+  };
 
   useEffect(() => {
     if (user) {
@@ -1632,7 +1679,7 @@ export default function App() {
                   exit={{ opacity: 0, x: -20 }}
                   transition={{ duration: 0.2 }}
                 >
-                  {currentPage === 'dashboard' && <Dashboard stats={stats} />}
+                  {currentPage === 'dashboard' && <Dashboard stats={stats} deferredPrompt={deferredPrompt} onInstall={handleInstallApp} />}
                   {currentPage === 'students' && (
                     <StudentsPage 
                       students={students} 
