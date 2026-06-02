@@ -28,23 +28,21 @@ import {
 } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 import * as XLSX from 'xlsx';
+import jsPDF from 'jspdf';
+import autoTable from 'jspdf-autotable';
 import { 
   Document, 
   Packer, 
   Paragraph, 
   TextRun, 
-  ImageRun, 
   Table, 
   TableRow, 
   TableCell, 
   WidthType, 
   AlignmentType,
-  HeadingLevel,
-  BorderStyle
+  HeadingLevel
 } from 'docx';
 import { saveAs } from 'file-saver';
-import jsPDF from 'jspdf';
-import autoTable from 'jspdf-autotable';
 
 // --- Types ---
 type Student = {
@@ -54,12 +52,13 @@ type Student = {
   jurusan: string;
 };
 
-type AttendanceStatus = 'H' | 'S' | 'I' | 'A' | '';
+type AttendanceStatus = 'H' | 'S' | 'I' | 'A' | 'T' | '';
 
 type AttendanceItem = {
   nama: string;
   status: AttendanceStatus;
   evidence?: string; // Base64 image
+  notes?: string;
 };
 
 type User = {
@@ -168,6 +167,26 @@ const Sidebar = ({ activePage, onNavigate, onLogout, onDeleteAccount, logo, isOp
                 </div>
               </div>
             )}
+          </div>
+          <div className="mt-auto p-4 flex flex-col items-center gap-2">
+            <button 
+              onClick={() => {
+                if(confirm('Aplikasi akan dimuat ulang untuk memperbarui sistem. Lanjutkan?')) {
+                  if ('serviceWorker' in navigator) {
+                    navigator.serviceWorker.getRegistrations().then(registrations => {
+                      for(let registration of registrations) {
+                        registration.unregister();
+                      }
+                    });
+                  }
+                  window.location.reload();
+                }
+              }}
+              className="text-[9px] font-black text-blue-400 hover:text-blue-300 uppercase tracking-widest bg-blue-500/10 px-3 py-1.5 rounded-lg transition-colors"
+            >
+              Perbarui Aplikasi
+            </button>
+            <div className="text-[8px] font-black text-slate-700 uppercase tracking-[0.2em] opacity-40">Version 2026.05.05.0.01</div>
           </div>
         </nav>
 
@@ -506,7 +525,7 @@ const generateWordReport = async (title: string, date: string, data: { student: 
         new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Nama", bold: true })] })] }),
         new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Kelas/Jurusan", bold: true })] })] }),
         new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Status", bold: true })] })] }),
-        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Lampiran", bold: true })] })] }),
+        new TableCell({ children: [new Paragraph({ children: [new TextRun({ text: "Catatan", bold: true })] })] }),
       ],
     }),
   ];
@@ -516,29 +535,10 @@ const generateWordReport = async (title: string, date: string, data: { student: 
     const statusText = att?.status === 'H' ? 'Hadir' : 
                       att?.status === 'S' ? 'Sakit' : 
                       att?.status === 'I' ? 'Izin' : 
-                      att?.status === 'A' ? 'Alfa' : 'Belum Absen';
+                      att?.status === 'A' ? 'Alfa' : 
+                      att?.status === 'T' ? 'Terlambat' : 'Belum Absen';
 
-    const evidenceChildren: (Paragraph | ImageRun)[] = [];
-    if (att?.evidence) {
-      try {
-        const base64Data = att.evidence.split(',')[1];
-        const buffer = Uint8Array.from(atob(base64Data), c => c.charCodeAt(0));
-        evidenceChildren.push(
-          new Paragraph({
-            children: [
-              new ImageRun({
-                data: buffer,
-                transformation: { width: 150, height: 200 },
-              } as any),
-            ],
-          })
-        );
-      } catch (e) {
-        evidenceChildren.push(new Paragraph("Gagal memuat gambar"));
-      }
-    } else {
-      evidenceChildren.push(new Paragraph("-"));
-    }
+    const notesText = att?.notes || att?.evidence || "-";
 
     rows.push(
       new TableRow({
@@ -547,7 +547,7 @@ const generateWordReport = async (title: string, date: string, data: { student: 
           new TableCell({ children: [new Paragraph(student.nama)] }),
           new TableCell({ children: [new Paragraph(`${student.kelas} - ${student.jurusan}`)] }),
           new TableCell({ children: [new Paragraph(statusText)] }),
-          new TableCell({ children: evidenceChildren as any }),
+          new TableCell({ children: [new Paragraph(notesText)] }),
         ],
       })
     );
@@ -972,8 +972,9 @@ const AttendancePage = ({ students, attendance, date, onDateChange, onStatusChan
         'Status': status === 'H' ? 'Hadir' : 
                   status === 'S' ? 'Sakit' : 
                   status === 'I' ? 'Izin' : 
-                  status === 'A' ? 'Alfa' : 'Belum Absen',
-        'Lampiran': statusItem?.evidence ? 'Ada Lampiran' : '-'
+                  status === 'A' ? 'Alfa' : 
+                  status === 'T' ? 'Terlambat' : 'Belum Absen',
+        'Catatan': status === 'T' ? (statusItem?.notes || statusItem?.evidence || '') : '-'
       };
     });
     const ws = XLSX.utils.json_to_sheet(dataForExcel);
@@ -982,7 +983,45 @@ const AttendancePage = ({ students, attendance, date, onDateChange, onStatusChan
     XLSX.writeFile(wb, `Rekap_Absensi_${date}.xlsx`);
   };
 
+  const handleDownloadPDF = () => {
+    const doc = new jsPDF();
+    const formattedDate = new Intl.DateTimeFormat('id-ID', { dateStyle: 'full' }).format(new Date(date));
+    
+    doc.setFontSize(16);
+    doc.text('LAPORAN ABSENSI HARIAN', 105, 15, { align: 'center' });
+    doc.setFontSize(12);
+    doc.text(`SMKN 1 BUNYU - ${formattedDate}`, 105, 25, { align: 'center' });
+    
+    const tableData = students
+      .filter(s => filter ? s.kelas === filter : true)
+      .map((s, i) => {
+        const att = attendance.find(a => a.nama === s.nama);
+        const statusText = att?.status === 'H' ? 'Hadir' : 
+                           att?.status === 'S' ? 'Sakit' : 
+                           att?.status === 'I' ? 'Izin' : 
+                           att?.status === 'A' ? 'Alfa' : 
+                           att?.status === 'T' ? `Terlambat (${att?.notes || att?.evidence || ''})` : '-';
+        return [
+          i + 1,
+          s.nama,
+          s.kelas,
+          statusText
+        ];
+      });
+
+    autoTable(doc, {
+      startY: 35,
+      head: [['No', 'Nama Siswa', 'Kelas', 'Status']],
+      body: tableData,
+      theme: 'grid',
+      headStyles: { fillColor: [37, 99, 235] }
+    });
+
+    doc.save(`Absensi_${date}.pdf`);
+  };
+
   const handleDownloadWord = async () => {
+    if (!students.length) return;
     const data = students
       .filter(s => filter ? s.kelas === filter : true)
       .map(s => {
@@ -1036,19 +1075,19 @@ const AttendancePage = ({ students, attendance, date, onDateChange, onStatusChan
           <button 
             onClick={handleDownloadWord}
             disabled={students.length === 0}
-            className="bg-blue-50 text-blue-700 border border-blue-200 hover:bg-blue-100 px-5 py-2.5 rounded-lg text-sm font-semibold shadow-sm transition-all disabled:opacity-50 flex items-center gap-2"
+            className="bg-blue-600 hover:bg-blue-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold shadow-sm transition-all disabled:opacity-50 flex items-center gap-2"
           >
-            <FileSpreadsheet className="w-4 h-4" />
-            <span>Word (+Gambar)</span>
+            <Download className="w-4 h-4" />
+            <span>Word</span>
           </button>
           
           <button 
-            onClick={onSave}
+            onClick={handleDownloadPDF}
             disabled={students.length === 0}
-            className="bg-blue-600 hover:bg-blue-700 text-white px-6 py-2.5 rounded-lg text-sm font-semibold shadow-sm transition-all disabled:opacity-50 flex items-center gap-2"
+            className="bg-rose-600 hover:bg-rose-700 text-white px-5 py-2.5 rounded-lg text-sm font-semibold shadow-sm transition-all disabled:opacity-50 flex items-center gap-2"
           >
-            <CheckCircle2 className="w-4 h-4" />
-            <span>Simpan Absensi</span>
+            <Download className="w-4 h-4" />
+            <span>PDF</span>
           </button>
         </div>
       </div>
@@ -1061,7 +1100,7 @@ const AttendancePage = ({ students, attendance, date, onDateChange, onStatusChan
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider">Nama Siswa</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Kelas</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Status Absensi</th>
-                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Lampiran</th>
+                <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-center">Catatan</th>
                 <th className="px-6 py-4 text-xs font-bold text-slate-500 uppercase tracking-wider text-right">Aksi</th>
               </tr>
             </thead>
@@ -1077,6 +1116,7 @@ const AttendancePage = ({ students, attendance, date, onDateChange, onStatusChan
                     case 'S': return 'bg-indigo-50 text-indigo-800 border-indigo-200';
                     case 'I': return 'bg-amber-50 text-amber-800 border-amber-200';
                     case 'A': return 'bg-rose-50 text-rose-800 border-rose-200';
+                    case 'T': return 'bg-orange-50 text-orange-800 border-orange-200';
                     default: return 'bg-slate-50 text-slate-400 border-slate-200';
                   }
                 };
@@ -1097,54 +1137,21 @@ const AttendancePage = ({ students, attendance, date, onDateChange, onStatusChan
                         <option value="S">S (Sakit)</option>
                         <option value="I">I (Izin)</option>
                         <option value="A">A (Alpa)</option>
+                        <option value="T">T (Terlambat)</option>
                       </select>
                     </td>
                     <td className="px-6 py-4">
                       <div className="flex flex-col items-center gap-2">
-                        {status ? (
-                          <>
-                            {!evidence ? (
-                              <label className="cursor-pointer bg-slate-50 text-slate-600 border border-slate-200 px-3 py-1.5 rounded-xl text-[10px] font-bold uppercase transition-all hover:bg-blue-50 hover:text-blue-600 hover:border-blue-200 flex items-center gap-1.5 shadow-sm">
-                                <Plus className="w-3 h-3" />
-                                Unggah
-                                <input 
-                                  type="file" 
-                                  className="hidden" 
-                                  accept="image/*" 
-                                  onChange={(e) => handleImageUpload(s.nama, e)}
-                                />
-                              </label>
-                            ) : (
-                              <div className="flex flex-col items-center gap-1">
-                                <div className="flex items-center gap-1">
-                                  <button 
-                                    onClick={() => setPreviewImage(evidence)}
-                                    className="p-1.5 bg-blue-50 text-blue-600 rounded-lg hover:bg-blue-100 transition-colors shadow-sm border border-blue-100"
-                                    title="Lihat Lampiran"
-                                  >
-                                    <Eye className="w-3.5 h-3.5" />
-                                  </button>
-                                  <button 
-                                    onClick={() => { if(confirm('Hapus lampiran ini?')) onEvidenceChange(s.nama, ''); }}
-                                    className="p-1.5 bg-rose-50 text-rose-600 rounded-lg hover:bg-rose-100 transition-colors shadow-sm border border-rose-100"
-                                    title="Hapus Lampiran"
-                                  >
-                                    <Trash2 className="w-3.5 h-3.5" />
-                                  </button>
-                                  <label className="p-1.5 bg-slate-50 text-slate-600 rounded-lg hover:bg-slate-100 transition-colors shadow-sm border border-slate-200 cursor-pointer">
-                                    <Edit className="w-3.5 h-3.5" />
-                                    <input 
-                                      type="file" 
-                                      className="hidden" 
-                                      accept="image/*" 
-                                      onChange={(e) => handleImageUpload(s.nama, e)}
-                                    />
-                                  </label>
-                                </div>
-                                <span className="text-[9px] font-bold text-emerald-600 uppercase tracking-wider">Terlampir</span>
-                              </div>
-                            )}
-                          </>
+                        {status === 'T' ? (
+                          <input 
+                            type="text" 
+                            placeholder="Alasan terlambat..." 
+                            className="w-full max-w-[200px] px-3.5 py-2 border border-slate-250 bg-slate-50 text-slate-800 rounded-xl outline-none focus:ring-2 focus:ring-orange-500/20 focus:border-orange-500 text-xs font-semibold focus:bg-white transition-all shadow-inner"
+                            value={att?.notes || att?.evidence || ''}
+                            onChange={(e) => onEvidenceChange(s.nama, e.target.value)}
+                          />
+                        ) : status ? (
+                          <span className="text-slate-350 text-xs">—</span>
                         ) : (
                           <span className="text-[10px] text-slate-400 italic">Pilih status dulu</span>
                         )}
@@ -1182,6 +1189,17 @@ const AttendancePage = ({ students, attendance, date, onDateChange, onStatusChan
             </tbody>
           </table>
         </div>
+      </div>
+
+      <div className="flex justify-end pt-2">
+        <button 
+          onClick={onSave}
+          disabled={students.length === 0}
+          className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-3 rounded-xl text-sm font-bold shadow-md hover:shadow-lg transition-all disabled:opacity-50 flex items-center gap-2"
+        >
+          <CheckCircle2 className="w-4 h-4" />
+          <span>Simpan Absensi</span>
+        </button>
       </div>
 
       <AnimatePresence>
@@ -1314,12 +1332,13 @@ const RecapPage = ({ students, attendanceHistory, onSelectDate, onPreviewImage, 
       summary.H,
       summary.S,
       summary.I,
-      summary.A
+      summary.A,
+      summary.T
     ]);
 
     autoTable(doc, {
       startY: 35,
-      head: [['No', 'Nama Siswa', 'Kelas', 'H', 'S', 'I', 'A']],
+      head: [['No', 'Nama Siswa', 'Kelas', 'H', 'S', 'I', 'A', 'T']],
       body: summaryData,
       theme: 'grid',
       headStyles: { fillColor: [37, 99, 235], halign: 'center' },
@@ -1328,45 +1347,7 @@ const RecapPage = ({ students, attendanceHistory, onSelectDate, onPreviewImage, 
         4: { halign: 'center' },
         5: { halign: 'center' },
         6: { halign: 'center' },
-      }
-    });
-
-    let currentY = (doc as any).lastAutoTable.finalY + 20;
-
-    dates.forEach((date) => {
-      const dailyAtt = attendanceHistory[date]?.filter(a => a.evidence && (a.status === 'S' || a.status === 'I')) || [];
-
-      if (dailyAtt.length > 0) {
-        if (currentY > 240) {
-          doc.addPage();
-          currentY = 20;
-        }
-
-        const dateStr = new Intl.DateTimeFormat('id-ID', { dateStyle: 'full' }).format(new Date(date));
-        doc.setFontSize(12);
-        doc.setFont('helvetica', 'bold');
-        doc.text(`Lampiran Bukti: ${dateStr}`, 14, currentY);
-        currentY += 10;
-
-        dailyAtt.forEach((att) => {
-          if (currentY > 230) {
-            doc.addPage();
-            currentY = 20;
-          }
-          
-          doc.setFontSize(10);
-          doc.setFont('helvetica', 'normal');
-          doc.text(`${att.nama} - Status: ${att.status === 'S' ? 'Sakit' : 'Izin'}`, 14, currentY);
-          
-          try {
-            doc.addImage(att.evidence!, 'JPEG', 14, currentY + 2, 40, 50);
-            currentY += 58;
-          } catch (e) {
-            doc.text('[Gagal memuat gambar]', 14, currentY + 5);
-            currentY += 12;
-          }
-        });
-        currentY += 10;
+        7: { halign: 'center' },
       }
     });
 
@@ -1383,7 +1364,7 @@ const RecapPage = ({ students, attendanceHistory, onSelectDate, onPreviewImage, 
 
   const studentSummary = useMemo(() => {
     return filteredStudents.map(s => {
-      const summary = { H: 0, S: 0, I: 0, A: 0 };
+      const summary = { H: 0, S: 0, I: 0, A: 0, T: 0 };
       dates.forEach(date => {
         const att = attendanceHistory[date]?.find(a => a.nama === s.nama);
         if (att?.status && (att.status in summary)) {
@@ -1447,6 +1428,7 @@ const RecapPage = ({ students, attendanceHistory, onSelectDate, onPreviewImage, 
                 'Sakit': summary.S,
                 'Izin': summary.I,
                 'Alfa': summary.A,
+                'Terlambat': summary.T,
                 'Total Hari': dates.length
               }));
               const ws = XLSX.utils.json_to_sheet(data);
@@ -1483,6 +1465,7 @@ const RecapPage = ({ students, attendanceHistory, onSelectDate, onPreviewImage, 
                   <th className="px-6 py-4 text-center bg-blue-50/30 text-blue-600">Sakit (S)</th>
                   <th className="px-6 py-4 text-center bg-amber-50/30 text-amber-600">Izin (I)</th>
                   <th className="px-6 py-4 text-center bg-rose-50/30 text-rose-600">Alfa (A)</th>
+                  <th className="px-6 py-4 text-center bg-orange-50/30 text-orange-600">Terlambat (T)</th>
                   <th className="px-6 py-4 text-right">Aksi</th>
                 </tr>
               </thead>
@@ -1497,6 +1480,7 @@ const RecapPage = ({ students, attendanceHistory, onSelectDate, onPreviewImage, 
                     <td className="px-6 py-4 text-center font-bold text-blue-600">{summary.S}</td>
                     <td className="px-6 py-4 text-center font-bold text-amber-600">{summary.I}</td>
                     <td className="px-6 py-4 text-center font-bold text-rose-600">{summary.A}</td>
+                    <td className="px-6 py-4 text-center font-bold text-orange-600">{summary.T}</td>
                     <td className="px-6 py-4 text-right">
                       <button 
                         onClick={() => { if(confirm(`Hapus SEMUA data absensi ${student.nama} untuk bulan ${selectedMonth}?`)) onDeleteMonthAttendance(selectedMonth, student.nama); }}
@@ -1509,7 +1493,7 @@ const RecapPage = ({ students, attendanceHistory, onSelectDate, onPreviewImage, 
                   </tr>
                 )) : (
                   <tr>
-                    <td colSpan={6} className="px-6 py-10 text-center text-slate-400 italic">Belum ada data siswa.</td>
+                    <td colSpan={7} className="px-6 py-10 text-center text-slate-400 italic">Belum ada data siswa.</td>
                   </tr>
                 )}
               </tbody>
@@ -1553,7 +1537,7 @@ const RecapPage = ({ students, attendanceHistory, onSelectDate, onPreviewImage, 
                     <tr>
                       <th className="px-6 py-3">Nama Siswa</th>
                       <th className="px-6 py-3 text-center">Status</th>
-                      <th className="px-6 py-3 text-center">Lampiran</th>
+                      <th className="px-6 py-3 text-center">Catatan</th>
                       <th className="px-6 py-3 text-right">Aksi</th>
                     </tr>
                   </thead>
@@ -1570,26 +1554,20 @@ const RecapPage = ({ students, attendanceHistory, onSelectDate, onPreviewImage, 
                               att.status === 'H' ? 'bg-emerald-50 text-emerald-700 border-emerald-100' :
                               att.status === 'S' ? 'bg-indigo-50 text-indigo-700 border-indigo-100' :
                               att.status === 'I' ? 'bg-amber-50 text-amber-700 border-amber-100' :
+                              att.status === 'T' ? 'bg-orange-50 text-orange-700 border-orange-100' :
                               'bg-rose-50 text-rose-700 border-rose-100'
                             }`}>
                               {att.status === 'H' ? 'Hadir' : 
                                att.status === 'S' ? 'Sakit' : 
-                               att.status === 'I' ? 'Izin' : 'Alfa'}
+                               att.status === 'I' ? 'Izin' : 
+                               att.status === 'T' ? 'Terlambat' : 'Alfa'}
                             </span>
                           </td>
-                          <td className="px-6 py-3 text-center">
-                            {att.evidence ? (
-                              <button 
-                                onClick={() => onPreviewImage(att.evidence!)}
-                                className="group relative"
-                              >
-                                <div className="w-10 h-10 rounded-lg overflow-hidden border-2 border-white shadow-sm group-hover:scale-110 transition-transform bg-slate-100">
-                                  <img src={att.evidence} alt="Lampiran" className="w-full h-full object-cover" />
-                                </div>
-                                <div className="absolute inset-0 bg-black/20 opacity-0 group-hover:opacity-100 rounded-lg flex items-center justify-center transition-opacity">
-                                  <Eye className="w-3 h-3 text-white" />
-                                </div>
-                              </button>
+                          <td className="px-6 py-3 text-center font-semibold text-slate-600 text-xs text-center">
+                            {(att.notes || att.evidence) ? (
+                              <span className="bg-slate-50 px-2.5 py-1 rounded-lg border border-slate-200 inline-block max-w-[200px] truncate" title={att.notes || att.evidence}>
+                                {att.notes || att.evidence}
+                              </span>
                             ) : (
                               <span className="text-slate-300 text-[10px]">—</span>
                             )}
@@ -1769,13 +1747,13 @@ export default function App() {
     });
   };
 
-  const handleEvidenceChange = (nama: string, evidence: string) => {
+  const handleEvidenceChange = (nama: string, notesVal: string) => {
     setAttendance(prev => {
       const existing = prev.find(a => a.nama === nama);
       if (existing) {
-        return prev.map(a => a.nama === nama ? { ...a, evidence } : a);
+        return prev.map(a => a.nama === nama ? { ...a, evidence: notesVal, notes: notesVal } : a);
       } else {
-        return [...prev, { nama, status: 'S', evidence }];
+        return [...prev, { nama, status: 'T', evidence: notesVal, notes: notesVal }];
       }
     });
   };
