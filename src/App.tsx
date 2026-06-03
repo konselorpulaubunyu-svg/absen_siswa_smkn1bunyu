@@ -112,6 +112,82 @@ const DEFAULT_TEACHERS: TeacherMaster[] = [
   { nomor: "23", nama: "Andrew Novandi", foto: "" }
 ];
 
+const DEFAULT_USERS = [
+  { name: "Andrian", username: "Andrian", password: "Andrian2026" }
+];
+
+const DEFAULT_STUDENTS: Student[] = [
+  { nomor: "26001", nama: "Aditya Pratama", kelas: "XII", jurusan: "RPL 1" },
+  { nomor: "26002", nama: "Amanda Putri", kelas: "XII", jurusan: "RPL 1" },
+  { nomor: "26003", nama: "Bagas Saputra", kelas: "XII", jurusan: "RPL 2" },
+  { nomor: "26004", nama: "Citra Lestari", kelas: "XII", jurusan: "RPL 2" },
+  { nomor: "26005", nama: "Dimas Wijaya", kelas: "XI", jurusan: "RPL 1" },
+  { nomor: "26006", nama: "Eka Rahmawati", kelas: "XI", jurusan: "RPL 1" },
+  { nomor: "26007", nama: "Fajar Nugraha", kelas: "XI", jurusan: "RPL 2" },
+  { nomor: "26008", nama: "Gita Cahyani", kelas: "XI", jurusan: "RPL 2" },
+  { nomor: "26009", nama: "Hendra Wijaya", kelas: "X", jurusan: "RPL 1" },
+  { nomor: "26010", nama: "Indah Permatasari", kelas: "X", jurusan: "RPL 1" }
+];
+
+const generateDefaultAttendance = (): Record<string, AttendanceItem[]> => {
+  const dates: string[] = [];
+  const today = new Date();
+  for (let i = 0; i < 5; i++) {
+    const d = new Date();
+    d.setDate(today.getDate() - i);
+    if (d.getDay() !== 0 && d.getDay() !== 6) {
+      dates.push(d.toISOString().split('T')[0]);
+    }
+  }
+  
+  const history: Record<string, AttendanceItem[]> = {};
+  dates.forEach((dateString) => {
+    history[dateString] = [
+      { nama: "Aditya Pratama", status: "H" },
+      { nama: "Amanda Putri", status: "H" },
+      { nama: "Bagas Saputra", status: "H" },
+      { nama: "Citra Lestari", status: "S", notes: "Demam tinggi" },
+      { nama: "Dimas Wijaya", status: "H" },
+      { nama: "Eka Rahmawati", status: "I", notes: "Acara keluarga" },
+      { nama: "Fajar Nugraha", status: "H" },
+      { nama: "Gita Cahyani", status: "T" },
+      { nama: "Hendra Wijaya", status: "H" },
+      { nama: "Indah Permatasari", status: "H" }
+    ];
+  });
+  
+  return history;
+};
+
+const generateDefaultTeachersAttendance = (): TeacherAttendance[] => {
+  const list: TeacherAttendance[] = [];
+  const todayStr = new Date().toISOString().split('T')[0];
+  
+  list.push({
+    id: "T-1",
+    nama: "Kokom Komariyah, S.Pd",
+    jamMasuk: "07:15",
+    keterangan: "Mengajar Kelas XII RPL 1",
+    hariTanggal: todayStr
+  });
+  list.push({
+    id: "T-2",
+    nama: "Nurlaelah, S.Pd",
+    jamMasuk: "07:30",
+    keterangan: "Rapat Guru",
+    hariTanggal: todayStr
+  });
+  list.push({
+    id: "T-3",
+    nama: "Kristiani Nainggolan, S.Pd",
+    jamMasuk: "07:45",
+    keterangan: "Piket Sekolah",
+    hariTanggal: todayStr
+  });
+  
+  return list;
+};
+
 // --- Components ---
 
 const Sidebar = ({ activePage, onNavigate, onLogout, onDeleteAccount, logo, isOpen, onClose }: { 
@@ -296,6 +372,154 @@ const Header = ({ title, user, onLogout, logo, onToggleSidebar }: { title: strin
   </header>
 );
 
+const DeleteAccountModal = ({ 
+  isOpen, 
+  onClose, 
+  user, 
+  onConfirm 
+}: { 
+  isOpen: boolean, 
+  onClose: () => void, 
+  user: User | null, 
+  onConfirm: (password: string, clearAllData: boolean) => boolean 
+}) => {
+  const [password, setPassword] = useState('');
+  const [clearAllData, setClearAllData] = useState(false);
+  const [showPassword, setShowPassword] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+
+  if (!isOpen || !user) return null;
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!password.trim()) {
+      setError('Masukkan password Anda untuk konfirmasi!');
+      return;
+    }
+    setError(null);
+    const success = onConfirm(password, clearAllData);
+    if (!success) {
+      setError('Password salah! Gagal menghapus akun.');
+    } else {
+      setPassword('');
+      setClearAllData(false);
+    }
+  };
+
+  return (
+    <div className="fixed inset-0 z-[100] flex items-center justify-center p-4 bg-slate-900/65 backdrop-blur-md">
+      <motion.div 
+        initial={{ opacity: 0, scale: 0.95, y: 10 }}
+        animate={{ opacity: 1, scale: 1, y: 0 }}
+        exit={{ opacity: 0, scale: 0.95, y: 10 }}
+        className="w-full max-w-md bg-white rounded-3xl overflow-hidden shadow-2xl border border-slate-100 flex flex-col"
+      >
+        {/* Decorative Top header */}
+        <div className="bg-gradient-to-r from-red-500 to-rose-600 p-6 text-white text-center relative">
+          <div className="absolute top-4 right-4">
+            <button 
+              type="button"
+              onClick={onClose}
+              className="text-white/60 hover:text-white p-1 rounded-full hover:bg-white/10 transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+          <div className="w-12 h-12 bg-white/20 rounded-full flex items-center justify-center mx-auto mb-3 shadow-inner">
+            <Trash2 className="w-6 h-6 text-white" />
+          </div>
+          <h3 className="font-extrabold text-lg uppercase tracking-wider">Hapus Akun Permanen</h3>
+          <p className="text-white/80 text-[11px] font-bold uppercase tracking-widest mt-1">Konfirmasi Keamanan</p>
+        </div>
+
+        <form onSubmit={handleSubmit} className="p-6 space-y-5">
+          <div className="bg-red-50 border border-red-100 rounded-2xl p-4 flex gap-3">
+            <AlertCircle className="w-5 h-5 text-red-600 shrink-0 mt-0.5" />
+            <div className="space-y-1">
+              <h4 className="text-xs font-black text-red-800 uppercase tracking-wide">Peringatan Kritis!</h4>
+              <p className="text-xs text-red-700 leading-relaxed font-medium">
+                Tindakan ini akan menghapus akun operator <span className="font-black">@{user.username} ({user.name})</span> secara permanen dari basis data lokal aplikasi ini.
+              </p>
+            </div>
+          </div>
+
+          <div className="space-y-4">
+            {/* Password input */}
+            <div className="space-y-1.5">
+              <label className="text-[10px] font-black text-slate-500 uppercase tracking-wider block">Masukkan Password Anda</label>
+              <div className="relative">
+                <input 
+                  type={showPassword ? 'text' : 'password'}
+                  placeholder="Ketik password login Anda"
+                  className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-3 outline-none focus:ring-2 focus:ring-red-500/20 text-slate-800 font-medium text-sm transition-all"
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    setError(null);
+                  }}
+                  required
+                />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  className="absolute right-3.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 p-1"
+                >
+                  {showPassword ? <EyeOff className="w-4 h-4" /> : <Eye className="w-4 h-4" />}
+                </button>
+              </div>
+            </div>
+
+            {/* Checkbox Wipe Data */}
+            <label className="flex items-start gap-3 bg-slate-50 hover:bg-slate-100 p-3.5 rounded-2xl cursor-pointer transition-colors border border-slate-100 group select-none">
+              <input 
+                type="checkbox"
+                className="mt-0.5 rounded text-red-600 focus:ring-red-500/20 w-4 h-4 cursor-pointer"
+                checked={clearAllData}
+                onChange={(e) => setClearAllData(e.target.checked)}
+              />
+              <div className="space-y-0.5">
+                <span className="text-xs font-black text-slate-700 uppercase tracking-wide group-hover:text-amber-700 transition-colors">Ikut Hapus Semua Data Sekolah</span>
+                <p className="text-[10px] text-slate-500 font-medium leading-relaxed">
+                  Centang untuk menghapus seluruh data siswa, riwayat absensi harian, daftar guru, dan config logo sekolah dari perangkat ini (Wipe/Reset).
+                </p>
+              </div>
+            </label>
+          </div>
+
+          {error && (
+            <div className="text-xs text-red-600 bg-red-50 border border-red-100 p-2.5 rounded-xl font-bold flex items-center gap-2">
+              <AlertCircle className="w-3.5 h-3.5 shrink-0" />
+              <span>{error}</span>
+            </div>
+          )}
+
+          {/* Action buttons */}
+          <div className="flex gap-3 pt-2">
+            <button
+              type="button"
+              onClick={() => {
+                onClose();
+                setPassword('');
+                setClearAllData(false);
+                setError(null);
+              }}
+              className="flex-1 bg-slate-100 hover:bg-slate-200 text-slate-600 font-bold py-3 rounded-xl text-xs transition-style text-center uppercase tracking-wider"
+            >
+              Batal
+            </button>
+            <button
+              type="submit"
+              className="flex-1 bg-rose-600 hover:bg-rose-700 text-white font-bold py-3 rounded-xl text-xs transition-all uppercase tracking-wider text-center shadow-lg shadow-rose-600/15"
+            >
+              Hapus Akun
+            </button>
+          </div>
+        </form>
+      </motion.div>
+    </div>
+  );
+};
+
 const LandingPage = ({ onStart, logo, onLogoChange }: { onStart: () => void, logo: string | null, onLogoChange: (file: File) => void }) => (
   <div className="min-h-screen bg-slate-900 flex flex-col items-center justify-center p-4 relative overflow-hidden text-white">
     <div className="absolute inset-0 z-0 opacity-20 pointer-events-none">
@@ -359,14 +583,46 @@ const AuthForm = ({ type, onToggle, onAuthSuccess, onBack, logo }: { type: 'logi
   const [showPassword, setShowPassword] = useState(false);
   const [registeredUsers, setRegisteredUsers] = useState<any[]>([]);
 
+  // States for local password recovery
+  const [isRecovering, setIsRecovering] = useState(false);
+  const [recoveryUsername, setRecoveryUsername] = useState('');
+  const [recoveryFullName, setRecoveryFullName] = useState('');
+  const [recoveredPassword, setRecoveredPassword] = useState<string | null>(null);
+
   useEffect(() => {
-    const users = JSON.parse(localStorage.getItem('app_users') || '[]');
-    setRegisteredUsers(users);
-  }, [type]);
+    const saved = localStorage.getItem('app_users');
+    if (saved) {
+      setRegisteredUsers(JSON.parse(saved));
+    } else {
+      setRegisteredUsers(DEFAULT_USERS);
+      localStorage.setItem('app_users', JSON.stringify(DEFAULT_USERS));
+    }
+  }, [type, isRecovering]);
 
   const selectUser = (user: any) => {
     setFormData(prev => ({ ...prev, username: user.username }));
     setMessage(null);
+  };
+
+  const handleRecoverPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    const users = JSON.parse(localStorage.getItem('app_users') || '[]');
+    const targetUser = users.find((u: any) => 
+      u.username.toLowerCase().trim() === recoveryUsername.toLowerCase().trim()
+    );
+
+    if (!targetUser) {
+      setMessage({ type: 'error', text: 'Username tidak ditemukan!' });
+      return;
+    }
+
+    if (targetUser.name.toLowerCase().trim() !== recoveryFullName.toLowerCase().trim()) {
+      setMessage({ type: 'error', text: 'Nama Lengkap tidak cocok dengan username tersebut!' });
+      return;
+    }
+
+    setRecoveredPassword(targetUser.password);
+    setMessage({ type: 'success', text: 'Identitas Anda telah berhasil diverifikasi!' });
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -430,13 +686,17 @@ const AuthForm = ({ type, onToggle, onAuthSuccess, onBack, logo }: { type: 'logi
           )}
         </div>
         <h2 className="text-2xl font-bold text-slate-800 tracking-tight">
-          {type === 'login' ? 'Selamat Datang' : 'Registrasi Guru'}
+          {isRecovering 
+            ? 'Pemulihan Sandi' 
+            : type === 'login' 
+              ? 'Selamat Datang' 
+              : 'Registrasi Guru'}
         </h2>
         <p className="text-slate-500 text-sm font-medium mt-1">
           Sistem Absensi SMKN 1 BUNYU
         </p>
 
-        {type === 'login' && registeredUsers.length > 0 && (
+        {type === 'login' && !isRecovering && registeredUsers.length > 0 && (
           <div className="mt-8">
             <p className="text-[10px] font-bold text-slate-400 uppercase tracking-widest mb-4">Pilih Akun Terdaftar</p>
             <div className="flex flex-wrap justify-center gap-4 max-h-40 overflow-y-auto py-2 px-1">
@@ -479,83 +739,215 @@ const AuthForm = ({ type, onToggle, onAuthSuccess, onBack, logo }: { type: 'logi
         </div>
       )}
 
-      <form onSubmit={handleSubmit} className="space-y-5">
-        {type === 'register' && (
+      {isRecovering ? (
+        <form onSubmit={handleRecoverPassword} className="space-y-5">
+          {recoveredPassword ? (
+            <div className="space-y-4">
+              <div className="bg-emerald-50 border border-emerald-100 rounded-2xl p-4 text-center space-y-2">
+                <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
+                <h4 className="text-xs font-bold text-emerald-800 uppercase tracking-wide">Kata Sandi Anda Ditemukan!</h4>
+                <div className="bg-white rounded-xl border border-emerald-200 py-3 px-4 shadow-sm inline-block min-w-[200px]">
+                  <span className="text-lg font-mono font-bold tracking-wider text-slate-800 select-all">
+                    {recoveredPassword}
+                  </span>
+                </div>
+                <p className="text-[10px] text-emerald-700 leading-relaxed max-w-xs mx-auto">
+                  Silakan gunakan kata sandi di atas untuk masuk kembali ke sistem.
+                </p>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => {
+                  setFormData(prev => ({ ...prev, username: recoveryUsername, password: recoveredPassword }));
+                  setIsRecovering(false);
+                  setRecoveredPassword(null);
+                  setRecoveryUsername('');
+                  setRecoveryFullName('');
+                  setMessage(null);
+                }}
+                className="w-full py-4 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700 shadow-lg shadow-blue-900/20 active:scale-[0.98] transition-all"
+              >
+                Kembali & Masuk
+              </button>
+            </div>
+          ) : (
+            <>
+              <p className="text-xs text-slate-500 leading-relaxed text-center">
+                Masukkan username dan nama lengkap terdaftar Anda untuk memulihkan kata sandi secara instan.
+              </p>
+              
+              <div className="space-y-4 pt-2">
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Username Operator</label>
+                  {registeredUsers.length > 0 ? (
+                    <select
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium transition-all text-slate-700 cursor-pointer"
+                      value={recoveryUsername}
+                      onChange={e => {
+                        setRecoveryUsername(e.target.value);
+                        setMessage(null);
+                      }}
+                      required
+                    >
+                      <option value="">Pilih Username</option>
+                      {registeredUsers.map(u => (
+                        <option key={u.username} value={u.username}>@{u.username}</option>
+                      ))}
+                    </select>
+                  ) : (
+                    <input 
+                      required
+                      type="text" 
+                      placeholder="Ketik username Anda"
+                      className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium transition-all text-slate-700"
+                      value={recoveryUsername}
+                      onChange={e => {
+                        setRecoveryUsername(e.target.value);
+                        setMessage(null);
+                      }}
+                    />
+                  )}
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Nama Lengkap Terdaftar</label>
+                  <input 
+                    required
+                    type="text" 
+                    placeholder="Contoh: Ahmad Syarif, S.Pd"
+                    className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium transition-all text-slate-700"
+                    value={recoveryFullName}
+                    onChange={e => {
+                      setRecoveryFullName(e.target.value);
+                      setMessage(null);
+                    }}
+                  />
+                  <div className="text-[10px] text-slate-400 mt-1.5 leading-relaxed italic">
+                    *Harus sama persis dengan nama lengkap saat pendaftaran akun.
+                  </div>
+                </div>
+              </div>
+
+              <div className="flex gap-3 pt-4">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsRecovering(false);
+                    setRecoveryUsername('');
+                    setRecoveryFullName('');
+                    setMessage(null);
+                  }}
+                  className="flex-1 py-3.5 bg-slate-100 hover:bg-slate-200 text-slate-600 rounded-lg font-bold text-xs uppercase tracking-wider transition-all"
+                >
+                  Batal
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3.5 bg-blue-600 hover:bg-blue-700 text-white rounded-lg font-bold text-xs uppercase tracking-wider transition-all shadow-md shadow-blue-500/10"
+                >
+                  Tampilkan Sandi
+                </button>
+              </div>
+            </>
+          )}
+        </form>
+      ) : (
+        <form onSubmit={handleSubmit} className="space-y-5">
+          {type === 'register' && (
+            <div>
+              <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Nama Lengkap</label>
+              <input 
+                required
+                type="text" 
+                placeholder="Ahmad Syarif, S.Pd"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium transition-all text-slate-700"
+                value={formData.name}
+                onChange={e => setFormData({ ...formData, name: e.target.value })}
+              />
+            </div>
+          )}
           <div>
-            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Nama Lengkap</label>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Username</label>
             <input 
               required
               type="text" 
-              placeholder="Ahmad Syarif, S.Pd"
+              placeholder="username_anda"
               className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium transition-all text-slate-700"
-              value={formData.name}
-              onChange={e => setFormData({ ...formData, name: e.target.value })}
+              value={formData.username}
+              onChange={e => setFormData({ ...formData, username: e.target.value })}
             />
           </div>
-        )}
-        <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Username</label>
-          <input 
-            required
-            type="text" 
-            placeholder="username_anda"
-            className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium transition-all text-slate-700"
-            value={formData.username}
-            onChange={e => setFormData({ ...formData, username: e.target.value })}
-          />
-        </div>
-        <div>
-          <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Kata Sandi</label>
-          <div className="relative">
-            <input 
-              required
-              type={showPassword ? "text" : "password"} 
-              placeholder="••••••••"
-              className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium transition-all text-slate-700 pr-12"
-              value={formData.password}
-              onChange={e => setFormData({ ...formData, password: e.target.value })}
-            />
-            <button 
-              type="button"
-              onClick={() => setShowPassword(!showPassword)}
-              className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 transition-colors"
-            >
-              {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
-            </button>
+          <div>
+            <label className="block text-xs font-bold text-slate-500 uppercase tracking-wider mb-2 ml-1">Kata Sandi</label>
+            <div className="relative">
+              <input 
+                required
+                type={showPassword ? "text" : "password"} 
+                placeholder="••••••••"
+                className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-lg focus:ring-2 focus:ring-blue-500/20 focus:border-blue-500 outline-none font-medium transition-all text-slate-700 pr-12"
+                value={formData.password}
+                onChange={e => setFormData({ ...formData, password: e.target.value })}
+              />
+              <button 
+                type="button"
+                onClick={() => setShowPassword(!showPassword)}
+                className="absolute right-3 top-1/2 -translate-y-1/2 p-1 text-slate-400 hover:text-slate-600 transition-colors"
+              >
+                {showPassword ? <EyeOff className="w-5 h-5" /> : <Eye className="w-5 h-5" />}
+              </button>
+            </div>
           </div>
-        </div>
-        <button 
-          type="submit"
-          disabled={loading}
-          className="w-full py-4 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700 shadow-lg shadow-blue-900/20 active:scale-[0.98] transition-all disabled:opacity-50 mt-4"
-        >
-          {loading ? 'Memproses...' : (type === 'login' ? 'Masuk Sekarang' : 'Daftar Akun')}
-        </button>
-      </form>
+          <button 
+            type="submit"
+            disabled={loading}
+            className="w-full py-4 bg-blue-600 text-white rounded-lg font-bold text-sm hover:bg-blue-700 shadow-lg shadow-blue-900/20 active:scale-[0.98] transition-all disabled:opacity-50 mt-4"
+          >
+            {loading ? 'Memproses...' : (type === 'login' ? 'Masuk Sekarang' : 'Daftar Akun')}
+          </button>
+        </form>
+      )}
 
       <div className="mt-8 text-center pt-8 border-t border-slate-100 flex flex-col gap-4">
-        <button 
-          type="button"
-          onClick={onToggle}
-          className="text-blue-600 font-bold hover:text-blue-700 transition-colors text-sm"
-        >
-          {type === 'login' ? 'Belum punya akun? Silahkan daftar disini' : 'Sudah punya akun? Kembali ke Login'}
-        </button>
-        {type === 'login' && (
-          <button 
-            type="button"
-            onClick={() => alert('Informasi Sandi: Karena ini adalah aplikasi pengembangan, saya (AI) dapat menginformasikan bahwa akun Anda adalah: Username: Andrian, Password: Andrian2026')}
-            className="text-slate-400 font-medium hover:text-slate-600 transition-colors text-[10px] uppercase tracking-wider"
-          >
-            Lupa Sandi?
-          </button>
+        {!isRecovering && (
+          <>
+            <button 
+              type="button"
+              onClick={onToggle}
+              className="text-blue-600 font-bold hover:text-blue-700 transition-colors text-sm"
+            >
+              {type === 'login' ? 'Belum punya akun? Silahkan daftar disini' : 'Sudah punya akun? Kembali ke Login'}
+            </button>
+            {type === 'login' && (
+              <button 
+                type="button"
+                onClick={() => {
+                  setIsRecovering(true);
+                  setMessage(null);
+                }}
+                className="text-slate-400 font-medium hover:text-slate-600 transition-colors text-[10px] uppercase tracking-wider focus:outline-none"
+              >
+                Lupa Sandi?
+              </button>
+            )}
+          </>
         )}
         <button 
           type="button"
-          onClick={onBack}
+          onClick={() => {
+            if (isRecovering) {
+              setIsRecovering(false);
+              setRecoveredPassword(null);
+              setRecoveryUsername('');
+              setRecoveryFullName('');
+              setMessage(null);
+            } else {
+              onBack();
+            }
+          }}
           className="text-slate-400 font-bold hover:text-slate-600 transition-colors text-xs uppercase tracking-widest"
         >
-          Kembali ke Beranda
+          {isRecovering ? 'Kembali ke Login' : 'Kembali ke Beranda'}
         </button>
       </div>
     </motion.div>
@@ -631,11 +1023,10 @@ const generateWordReport = async (title: string, date: string, data: { student: 
 
 const Dashboard = ({ stats, deferredPrompt, onInstall }: { stats: any, deferredPrompt: any, onInstall: () => void }) => (
   <div className="p-4 sm:p-8 space-y-6 sm:space-y-8">
-    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
       {[
         { label: 'Total Siswa', value: stats.totalStudents || 0, icon: Users, bgColor: 'bg-indigo-50', borderColor: 'border-indigo-100', textColor: 'text-indigo-700', valColor: 'text-indigo-800' },
-        { label: 'Hadir Hari Ini', value: stats.attendanceToday || 0, icon: ClipboardCheck, bgColor: 'bg-emerald-50', borderColor: 'border-emerald-100', textColor: 'text-emerald-700', valColor: 'text-emerald-800' },
-        { label: 'Rekap Absensi', value: stats.historyCount || 0, icon: FileSpreadsheet, bgColor: 'bg-amber-50', borderColor: 'border-amber-100', textColor: 'text-amber-700', valColor: 'text-amber-800' },
+        { label: 'Total Guru', value: stats.totalTeachers || 0, icon: GraduationCap, bgColor: 'bg-blue-50', borderColor: 'border-blue-100', textColor: 'text-blue-700', valColor: 'text-blue-800' },
       ].map((card, i) => (
         <motion.div 
           key={i}
@@ -1805,10 +2196,7 @@ const TeachersPage = ({
   // Form State
   const [nama, setNama] = useState('');
   const [hariTanggal, setHariTanggal] = useState(() => new Date().toISOString().split('T')[0]);
-  const [jamMasuk, setJamMasuk] = useState(() => {
-    const now = new Date();
-    return `${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`;
-  });
+  const [jamMasuk, setJamMasuk] = useState('');
   const [keterangan, setKeterangan] = useState('Hadir');
   const [keteranganCustom, setKeteranganCustom] = useState('');
 
@@ -1972,8 +2360,7 @@ const TeachersPage = ({
 
     // Reset Form (except date to make repetitive logging faster)
     setNama('');
-    const now = new Date();
-    setJamMasuk(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
+    setJamMasuk('');
     setKeterangan('Hadir');
     setKeteranganCustom('');
   };
@@ -1996,8 +2383,7 @@ const TeachersPage = ({
     setEditingItem(null);
     setNama('');
     setHariTanggal(new Date().toISOString().split('T')[0]);
-    const now = new Date();
-    setJamMasuk(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
+    setJamMasuk('');
     setKeterangan('Hadir');
     setKeteranganCustom('');
   };
@@ -2102,14 +2488,27 @@ const TeachersPage = ({
               {/* Jam Masuk */}
               <div className="space-y-1.5">
                 <label className="text-xs font-bold text-slate-500 uppercase">Jam Masuk</label>
-                <div className="relative">
+                <div className="flex gap-2">
                   <input 
-                    type="time"
-                    className="w-full bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800 font-medium text-sm transition-all cursor-pointer"
+                    type="text"
+                    placeholder="Contoh: 07:15"
+                    className="flex-grow bg-slate-50 border border-slate-200 rounded-xl px-4 py-2.5 outline-none focus:ring-2 focus:ring-blue-500/20 text-slate-800 font-medium text-sm transition-all"
                     value={jamMasuk}
                     onChange={e => setJamMasuk(e.target.value)}
                     required
                   />
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const now = new Date();
+                      setJamMasuk(`${String(now.getHours()).padStart(2, '0')}:${String(now.getMinutes()).padStart(2, '0')}`);
+                    }}
+                    className="bg-slate-100 hover:bg-slate-200 text-slate-600 px-3 py-2.5 rounded-xl text-xs font-bold transition-all shrink-0 flex items-center justify-center gap-1 border border-slate-200"
+                    title="Gunakan jam sekarang"
+                  >
+                    <Clock className="w-4 h-4 text-slate-500" />
+                    <span>Sekarang</span>
+                  </button>
                 </div>
               </div>
 
@@ -2554,10 +2953,11 @@ export default function App() {
   const [teachersAttendance, setTeachersAttendance] = useState<TeacherAttendance[]>([]);
   const [teachersList, setTeachersList] = useState<TeacherMaster[]>([]);
   const [currentDate, setCurrentDate] = useState(new Date().toISOString().split('T')[0]);
-  const [stats, setStats] = useState({ totalStudents: 0, attendanceToday: 0, historyCount: 0 });
+  const [stats, setStats] = useState({ totalStudents: 0, totalTeachers: 0, attendanceToday: 0, historyCount: 0 });
   const [globalPreviewImage, setGlobalPreviewImage] = useState<string | null>(null);
   const [logo, setLogo] = useState<string | null>(() => localStorage.getItem('app_logo'));
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [deferredPrompt, setDeferredPrompt] = useState<any>(null);
 
   useEffect(() => {
@@ -2619,17 +3019,28 @@ export default function App() {
       Array.isArray(monthData) && monthData.some((item: any) => item.status)
     ).length;
 
+    const savedTeachersRaw = localStorage.getItem('app_teachers_list');
+    const teachersCount = savedTeachersRaw ? JSON.parse(savedTeachersRaw).length : DEFAULT_TEACHERS.length;
+
     setStats({
       totalStudents: currentStudents.length,
+      totalTeachers: teachersCount,
       attendanceToday: todayAttendance.filter((a: any) => a.status).length,
       historyCount: validHistoryCount
     });
   };
 
   const fetchStudents = () => {
-    const data = JSON.parse(localStorage.getItem('app_students') || '[]');
-    setStudents(data);
-    updateStats(data, attendanceHistory);
+    const saved = localStorage.getItem('app_students');
+    if (saved) {
+      const data = JSON.parse(saved);
+      setStudents(data);
+      updateStats(data, attendanceHistory);
+    } else {
+      setStudents(DEFAULT_STUDENTS);
+      localStorage.setItem('app_students', JSON.stringify(DEFAULT_STUDENTS));
+      updateStats(DEFAULT_STUDENTS, attendanceHistory);
+    }
   };
 
   const fetchStats = () => {
@@ -2637,19 +3048,40 @@ export default function App() {
   };
 
   const fetchAttendance = (date: string) => {
-    const history = JSON.parse(localStorage.getItem('app_attendance') || '{}');
-    setAttendance(history[date] || []);
+    const saved = localStorage.getItem('app_attendance');
+    if (saved) {
+      const history = JSON.parse(saved);
+      setAttendance(history[date] || []);
+    } else {
+      const defaultHistory = generateDefaultAttendance();
+      setAttendance(defaultHistory[date] || []);
+      localStorage.setItem('app_attendance', JSON.stringify(defaultHistory));
+    }
   };
 
   const fetchAttendanceHistory = () => {
-    const history = JSON.parse(localStorage.getItem('app_attendance') || '{}');
-    setAttendanceHistory(history);
-    updateStats(students, history);
+    const saved = localStorage.getItem('app_attendance');
+    if (saved) {
+      const history = JSON.parse(saved);
+      setAttendanceHistory(history);
+      updateStats(students, history);
+    } else {
+      const defaultHistory = generateDefaultAttendance();
+      setAttendanceHistory(defaultHistory);
+      localStorage.setItem('app_attendance', JSON.stringify(defaultHistory));
+      updateStats(students, defaultHistory);
+    }
   };
 
   const fetchTeachersAttendance = () => {
     const saved = localStorage.getItem('app_teachers_attendance');
-    setTeachersAttendance(saved ? JSON.parse(saved) : []);
+    if (saved) {
+      setTeachersAttendance(JSON.parse(saved));
+    } else {
+      const defaultList = generateDefaultTeachersAttendance();
+      setTeachersAttendance(defaultList);
+      localStorage.setItem('app_teachers_attendance', JSON.stringify(defaultList));
+    }
   };
 
   const handleAddTeacherAttendance = (item: Omit<TeacherAttendance, 'id'>) => {
@@ -2835,13 +3267,47 @@ export default function App() {
   };
 
   const handleDeleteAccount = () => {
-    if (!user) return;
+    setIsDeleteModalOpen(true);
+  };
+
+  const handleConfirmDeleteAccount = (password: string, clearAllData: boolean) => {
+    if (!user) return false;
     
+    // Verifikasi password
     const users = JSON.parse(localStorage.getItem('app_users') || '[]');
+    const foundUser = users.find((u: any) => u.username === user.username);
+    
+    if (!foundUser || foundUser.password !== password) {
+      alert('Password konfirmasi tidak benar!');
+      return false;
+    }
+    
+    // Hapus user dari database lokal
     const nextUsers = users.filter((u: any) => u.username !== user.username);
     localStorage.setItem('app_users', JSON.stringify(nextUsers));
     
+    // Jika user memilih untuk menghapus seluruh data sekolah juga
+    if (clearAllData) {
+      localStorage.removeItem('app_students');
+      localStorage.removeItem('app_attendance');
+      localStorage.removeItem('app_teachers_attendance');
+      localStorage.removeItem('app_teachers_list');
+      localStorage.removeItem('app_logo');
+      
+      // Reset state instan
+      setStudents([]);
+      setAttendance([]);
+      setAttendanceHistory({});
+      setTeachersAttendance([]);
+      setTeachersList([]);
+      setLogo(null);
+      setStats({ totalStudents: 0, attendanceToday: 0, historyCount: 0 });
+    }
+    
+    setIsDeleteModalOpen(false);
     handleLogout();
+    alert('Akun Anda berhasil dihapus dari sistem secara permanen.');
+    return true;
   };
 
   const handleLogoUpdate = (file: File) => {
@@ -2960,6 +3426,14 @@ export default function App() {
             </main>
 
             <AnimatePresence>
+              {isDeleteModalOpen && (
+                <DeleteAccountModal 
+                  isOpen={isDeleteModalOpen}
+                  onClose={() => setIsDeleteModalOpen(false)}
+                  user={user}
+                  onConfirm={handleConfirmDeleteAccount}
+                />
+              )}
               {globalPreviewImage && (
                 <div className="fixed inset-0 z-[100] flex items-center justify-center p-8 bg-slate-900/90 backdrop-blur-md">
                   <motion.div 
